@@ -44,6 +44,34 @@ as a standalone app to try it without a DAW.
 4. Use Bypass/Solo/Mute per band to audition bands in isolation.
 5. Save your settings as a preset from the header dropdown + floppy-disk icon.
 
+## How it works
+
+Incoming audio is split into up to 8 bands by a cascaded Linkwitz-Riley (LR4, 24 dB/oct)
+crossover: each split point takes whatever hasn't been assigned to a band yet, sends the low
+side to that band, and keeps the high side for the next split. That keeps bands contiguous with
+no gaps or overlaps as edges are dragged around, and reconstructs to a flat response if every
+band's output is summed back together (before each one's convolution diverges it).
+
+Each band then runs its own independent chain: pre-delay -> convolution against the selected
+impulse response -> tone (a tilt EQ) -> a feedback tap (saturator, limiter, DC blocker, fed back
+into the next block) -> dry/wet mix -> output trim. The convolution itself is JUCE's built-in
+`dsp::Convolution` (partitioned FFT); Stretch and Fade In/Out reshape the actual IR buffer before
+it's loaded -- resampling for Stretch, an amplitude envelope for the fades, with Fade Out
+actually shortening the buffer's length rather than just tapering it in place.
+
+That reshaping (disk read, resample, fade math) is real work, so it runs on a dedicated
+background thread instead of the audio thread. The hand-off into the convolution engine still
+happens on the audio thread, though: JUCE's docs are explicit that `loadImpulseResponse()` has to
+be called from the same thread that calls `process()`, so the background thread only prepares
+the shaped buffer, and the audio thread picks it up and loads it on its next block.
+
+The IR picker itself is the 46-entry factory library (fixed order, safe to reference by index
+forever) followed by anything found in the `Custom` subfolder, scanned once at startup. Since
+that scan's order depends on whatever's in the folder at the time, saved presets and DAW projects
+store the selected file's actual path alongside the numeric index, so reloading one re-resolves
+to the right file even if the folder's contents have changed since (see Known limitations for the
+one case that doesn't cover).
+
 ## Building from source
 
 Requires CMake 3.22+ and a C++20 compiler (Visual Studio 2022 Build Tools on Windows). JUCE is
@@ -82,6 +110,8 @@ Tests/                 offline DSP verification harness
 ## Known limitations
 
 - Windows only right now; macOS build is planned but not yet set up.
-- Custom IR ordering in the picker is only stable while the custom file set itself doesn't
-  change -- unlike the factory library, which has permanent fixed indices for preset/automation
-  compatibility.
+- A custom IR's position in the picker can still shift as files are added/removed from the
+  Custom folder (unlike the factory library's permanent fixed indices). Saved presets and DAW
+  projects track the actual file, not just its list position, so they survive that -- but a DAW
+  automation lane that sweeps through custom-IR index values directly (as opposed to just
+  selecting one) is stored as the host's own raw numbers and isn't covered by that protection.
