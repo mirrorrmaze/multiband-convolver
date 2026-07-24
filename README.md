@@ -23,8 +23,6 @@ while the highs bloom in a cathedral, all in one instance.
   (via the `...` menu -> "Open IR Library Folder") and they show up in the picker right alongside
   the factory library.
 - **Presets**: save/recall full plugin states from the header dropdown.
-- **Hardware-style GUI**: dark scratched-metal chassis, flat-topped beveled knobs with real
-  brushed-metal texture, styled after vintage hardware synths and mixing consoles.
 
 ## Installing
 
