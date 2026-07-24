@@ -83,6 +83,7 @@ add_executable(OfflineDspTest
     Source/DSP/IRLibrary.cpp
     Source/DSP/IRProcessor.cpp
     Source/DSP/IRReshapeWorker.cpp
+    Source/Params/ParameterLayout.cpp
 )
 
 target_include_directories(OfflineDspTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
@@ -91,6 +92,7 @@ target_link_libraries(OfflineDspTest
     PRIVATE
         juce::juce_dsp
         juce::juce_audio_formats
+        juce::juce_audio_processors
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
 )

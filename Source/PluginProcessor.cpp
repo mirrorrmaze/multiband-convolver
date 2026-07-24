@@ -168,6 +168,8 @@ void MultibandConvolverAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
 
 void MultibandConvolverAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
+    Params::stampSelectedIRPaths(apvts);
+
     auto state = apvts.copyState();
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
@@ -177,7 +179,10 @@ void MultibandConvolverAudioProcessor::setStateInformation(const void* data, int
 {
     std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
     if (xml != nullptr && xml->hasTagName(apvts.state.getType()))
+    {
         apvts.replaceState(juce::ValueTree::fromXml(*xml));
+        Params::resolveSelectedIRPaths(apvts);
+    }
 }
 
 juce::AudioProcessorEditor* MultibandConvolverAudioProcessor::createEditor()

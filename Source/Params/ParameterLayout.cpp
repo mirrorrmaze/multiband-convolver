@@ -92,4 +92,44 @@ namespace Params
 
         return { params.begin(), params.end() };
     }
+
+    void stampSelectedIRPaths(juce::AudioProcessorValueTreeState& apvts)
+    {
+        const auto& catalog = IRLibrary::getCatalog();
+
+        for (int b = 0; b < maxBands; ++b)
+        {
+            auto* irParam = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(bandIrIndexID(b)));
+            if (irParam == nullptr)
+                continue;
+
+            const int idx = irParam->getIndex();
+            const juce::String path = (idx >= 0 && idx < (int) catalog.size())
+                                         ? catalog[(size_t) idx].relativePath
+                                         : juce::String();
+            apvts.state.setProperty(bandIrPathID(b), path, nullptr);
+        }
+    }
+
+    void resolveSelectedIRPaths(juce::AudioProcessorValueTreeState& apvts)
+    {
+        const auto& catalog = IRLibrary::getCatalog();
+
+        for (int b = 0; b < maxBands; ++b)
+        {
+            const auto path = apvts.state.getProperty(bandIrPathID(b), {}).toString();
+            if (path.isEmpty())
+                continue;
+
+            for (int i = 0; i < (int) catalog.size(); ++i)
+            {
+                if (catalog[(size_t) i].relativePath == path)
+                {
+                    if (auto* irParam = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(bandIrIndexID(b))))
+                        *irParam = i;
+                    break;
+                }
+            }
+        }
+    }
 }

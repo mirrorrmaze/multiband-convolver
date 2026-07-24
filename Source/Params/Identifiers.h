@@ -28,6 +28,15 @@ namespace Params
 
     // ---- Per-band parameters ----
     inline juce::String bandIrIndexID(int band)   { return "band" + juce::String(band) + "_irIndex"; }
+
+    // Not a registered parameter -- just a ValueTree property key (see
+    // Params::stampSelectedIRPaths/resolveSelectedIRPaths) recording the *file path* of whichever
+    // IR bandIrIndexID(band) currently points to, since a plain numeric index isn't a stable way
+    // to identify a custom (user-added) IR across sessions: the catalog is rescanned from
+    // whatever's in the Custom folder at startup, so if that folder's contents change, the same
+    // index can end up pointing at a different file. Storing the path alongside the index lets a
+    // saved preset/project re-resolve the correct file regardless of any such reordering.
+    inline juce::String bandIrPathID(int band)    { return "band" + juce::String(band) + "_irPath"; }
     inline juce::String bandDryWetID(int band)    { return "band" + juce::String(band) + "_dryWet"; }
     inline juce::String bandPreDelayID(int band)  { return "band" + juce::String(band) + "_preDelayMs"; }
     inline juce::String bandToneID(int band)      { return "band" + juce::String(band) + "_tone"; }

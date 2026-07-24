@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "ParameterLayout.h"
 
 // Simple file-backed preset store: each user preset is the APVTS state serialized to XML (the
 // same format getStateInformation/setStateInformation already use for host save/reload), one file
@@ -38,6 +39,7 @@ public:
             return false;
 
         auto file = getPresetsDirectory().getChildFile(juce::File::createLegalFileName(name.trim()) + ".xml");
+        Params::stampSelectedIRPaths(apvts);
         auto state = apvts.copyState();
         std::unique_ptr<juce::XmlElement> xml(state.createXml());
         return xml != nullptr && xml->writeTo(file);
@@ -54,6 +56,7 @@ public:
             return false;
 
         apvts.replaceState(juce::ValueTree::fromXml(*xml));
+        Params::resolveSelectedIRPaths(apvts);
         return true;
     }
 

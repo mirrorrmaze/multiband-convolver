@@ -10,9 +10,12 @@
 //      ceiling, the output must stay bounded (no runaway growth) thanks to the saturator + limiter.
 #include <juce_dsp/juce_dsp.h>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 #include "../Source/DSP/CrossoverSplitter.h"
 #include "../Source/DSP/BandChain.h"
 #include "../Source/DSP/IRLibrary.h"
+#include "../Source/Params/ParameterLayout.h"
+#include "../Source/Params/Identifiers.h"
 #include <iostream>
 #include <vector>
 #include <random>
@@ -289,6 +292,71 @@ namespace
 
         return realTimeFactor < 1.0;
     }
+
+    // Minimal AudioProcessor stub -- just enough for AudioProcessorValueTreeState to attach to,
+    // so testIRPathPersistence() below can exercise Params::stampSelectedIRPaths/
+    // resolveSelectedIRPaths without needing the full plugin processor (which pulls in the GUI
+    // module this lightweight test target deliberately avoids -- see the file's top comment).
+    struct DummyProcessor : public juce::AudioProcessor
+    {
+        DummyProcessor() : juce::AudioProcessor(BusesProperties()) {}
+        const juce::String getName() const override { return "dummy"; }
+        void prepareToPlay(double, int) override {}
+        void releaseResources() override {}
+        void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}
+        double getTailLengthSeconds() const override { return 0.0; }
+        bool acceptsMidi() const override { return false; }
+        bool producesMidi() const override { return false; }
+        juce::AudioProcessorEditor* createEditor() override { return nullptr; }
+        bool hasEditor() const override { return false; }
+        int getNumPrograms() override { return 1; }
+        int getCurrentProgram() override { return 0; }
+        void setCurrentProgram(int) override {}
+        const juce::String getProgramName(int) override { return {}; }
+        void changeProgramName(int, const juce::String&) override {}
+        void getStateInformation(juce::MemoryBlock&) override {}
+        void setStateInformation(const void*, int) override {}
+    };
+
+    // Proves the mechanism behind "custom IR selection survives the Custom folder's contents
+    // changing" (see Identifiers.h's bandIrPathID comment): stamp a path for band 0 that matches
+    // some *other* catalog entry than its current index, then confirm resolveSelectedIRPaths()
+    // finds that entry by path rather than trusting the stale index. This is exactly what
+    // happens across a save/reload when the Custom folder's scan order has shifted underneath a
+    // saved preset -- the path is the one thing that's still correct; the index isn't.
+    bool testIRPathPersistence()
+    {
+        DummyProcessor proc;
+        juce::AudioProcessorValueTreeState apvts(proc, nullptr, "PARAMS", Params::createParameterLayout());
+
+        const auto& catalog = IRLibrary::getCatalog();
+        if (catalog.size() < 2)
+        {
+            std::cout << "[IR path persistence test] SKIPPED -- catalog has fewer than 2 entries\n";
+            return true;
+        }
+
+        auto* irParam = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(Params::bandIrIndexID(0)));
+        if (irParam == nullptr)
+        {
+            std::cout << "[IR path persistence test] FAILED -- band0 IR parameter not found\n";
+            return false;
+        }
+
+        const int targetIndex = (int) catalog.size() - 1; // last entry, deliberately not index 0
+        *irParam = 0; // start somewhere else, so a passing test can't be a no-op coincidence
+
+        // Simulate "a preset saved back when this path was at some other index": stamp the path
+        // for the target entry directly, without the numeric index agreeing with it.
+        apvts.state.setProperty(Params::bandIrPathID(0), catalog[(size_t) targetIndex].relativePath, nullptr);
+
+        Params::resolveSelectedIRPaths(apvts);
+
+        const bool ok = irParam->getIndex() == targetIndex;
+        std::cout << "[IR path persistence test] resolved index = " << irParam->getIndex()
+                   << " (expected " << targetIndex << ")\n";
+        return ok;
+    }
 }
 
 int main()
@@ -314,6 +382,7 @@ int main()
     ok &= testCrossoverNull(sampleRate, blockSize);
     ok &= testConvolutionProducesATail(sampleRate, blockSize);
     ok &= testFeedbackSafety(sampleRate, blockSize);
+    ok &= testIRPathPersistence();
     ok &= testCpuBudgetAtMaxBands(sampleRate, blockSize);
 
     std::cout << "\n" << (ok ? "ALL TESTS PASSED" : "SOME TESTS FAILED") << "\n";
