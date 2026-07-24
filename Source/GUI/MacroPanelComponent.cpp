@@ -16,7 +16,7 @@ MacroPanelComponent::MacroPanelComponent(MultibandConvolverAudioProcessor& proce
     : processor(processorToUse)
 {
     bandTitleLabel.setJustificationType(juce::Justification::centredLeft);
-    bandTitleLabel.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
+    bandTitleLabel.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)).withExtraKerningFactor(0.04f));
     addAndMakeVisible(bandTitleLabel);
 
     for (auto& entry : IRLibrary::getCatalog())
@@ -48,7 +48,7 @@ MacroPanelComponent::MacroPanelComponent(MultibandConvolverAudioProcessor& proce
         addAndMakeVisible(*spec.slider);
         spec.label->setText(spec.text, juce::dontSendNotification);
         spec.label->setJustificationType(juce::Justification::centred);
-        spec.label->setFont(juce::Font(juce::FontOptions(12.0f)));
+        spec.label->setFont(juce::Font(juce::FontOptions(12.0f)).withExtraKerningFactor(0.03f));
         addAndMakeVisible(*spec.label);
 
         wireKnobPopup(*spec.slider, spec.unit, spec.decimals);
@@ -135,8 +135,10 @@ void MacroPanelComponent::rebuildAttachments()
 
 void MacroPanelComponent::paint(juce::Graphics& g)
 {
-    g.setColour(LookAndFeelSaturnish::panel);
-    g.fillRect(getLocalBounds());
+    if (auto* lf = dynamic_cast<LookAndFeelSaturnish*>(&getLookAndFeel()))
+        lf->drawChassisPanel(g, getLocalBounds().toFloat(), true);
+    else
+        g.fillAll(LookAndFeelSaturnish::panel);
 
     g.setColour(LookAndFeelSaturnish::background);
     g.fillRect(getLocalBounds().removeFromTop(1));

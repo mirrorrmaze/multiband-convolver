@@ -5,7 +5,9 @@ namespace IRLibrary
 {
     const std::vector<Entry>& getCatalog()
     {
-        static const std::vector<Entry> catalog = {
+        static const std::vector<Entry> combined = []
+        {
+            std::vector<Entry> catalog = {
             // Residential
             { "Arroyo House Living Room",     "Residential", "Residential/Arroyo House Living Room.wav" },
             { "College House Bedroom",        "Residential", "Residential/College House Bedroom.wav" },
@@ -76,10 +78,55 @@ namespace IRLibrary
             { "Car Interior",                 "Textures", "Textures/Car Interior.wav" },
             { "Storm Drain",                  "Textures", "Textures/Storm Drain.wav" },
             { "Catamaran Hull",               "Textures", "Textures/Catamaran Hull.wav" },
-        };
+            };
 
-        jassert((int) catalog.size() == catalogSize);
-        return catalog;
+            jassert((int) catalog.size() == factoryCatalogSize);
+
+            // Custom IRs: anything the user has dropped into Custom/ (searched recursively, so
+            // they can organize their own files into subfolders if they want), appended after
+            // the factory list and sorted by path for a stable order within a session -- see
+            // getCatalog()'s header comment for why that's "stable within a session" and not a
+            // permanent guarantee the way the factory indices are.
+            auto customDir = getCustomIRDirectory();
+            if (customDir.isDirectory())
+            {
+                juce::AudioFormatManager formatManager;
+                formatManager.registerBasicFormats();
+
+                juce::Array<juce::File> files;
+                customDir.findChildFiles(files, juce::File::findFiles, true);
+                files.sort();
+
+                for (auto& f : files)
+                {
+                    if (formatManager.findFormatForFileExtension(f.getFileExtension()) == nullptr)
+                        continue;
+
+                    Entry e;
+                    e.displayName = f.getFileNameWithoutExtension();
+                    e.category = "Custom";
+                    e.relativePath = "Custom/" + f.getRelativePathFrom(customDir).replaceCharacter('\\', '/');
+                    catalog.push_back(e);
+                }
+            }
+
+            return catalog;
+        }();
+
+        return combined;
+    }
+
+    juce::File getCustomIRDirectory()
+    {
+        auto root = resolveIRRoot();
+        if (! root.isDirectory())
+            return {};
+
+        auto customDir = root.getChildFile("Custom");
+        if (! customDir.isDirectory())
+            customDir.createDirectory();
+
+        return customDir;
     }
 
     juce::File resolveIRRoot()
@@ -102,7 +149,10 @@ namespace IRLibrary
             probe = probe.getParentDirectory();
         }
 
-        // 3) User content-pack location (for a future installer).
+        // 3) User content-pack location -- this is where the installer actually places the
+        //    factory library (Documents\MultibandConvolver\IRs), since it's the one location
+        //    that's independent of both the Standalone's install dir and the VST3's (which may
+        //    differ per user, and which a plugin can't always resolve reliably when hosted).
         auto userDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
                            .getChildFile("MultibandConvolver").getChildFile("IRs");
         if (userDir.isDirectory())

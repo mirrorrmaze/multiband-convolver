@@ -60,7 +60,7 @@ namespace Params
                 irChoices, 0));
 
             floatParam(bandDryWetID(b), "Band " + juce::String(b + 1) + " Dry/Wet",
-                       { 0.0f, 100.0f, 0.1f }, 0.0f, "%");
+                       { 0.0f, 100.0f, 0.1f }, 50.0f, "%");
 
             floatParam(bandPreDelayID(b), "Band " + juce::String(b + 1) + " Pre-Delay",
                        preDelayRange, 0.0f, "ms");

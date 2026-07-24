@@ -130,11 +130,15 @@ namespace
         std::mt19937 rng(1);
         std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
 
-        // Give the async IR load real wall-clock time to finish (see testConvolutionProducesATail)
-        // so the full stress window below genuinely exercises convolution + feedback together.
+        // Give the async IR load real wall-clock time to finish (see testConvolutionProducesATail
+        // for the full three-stage breakdown) so the stress window below genuinely exercises
+        // convolution + feedback together, against the real IR rather than the trivial default.
         buf.clear();
         chain.process(buf);
-        std::this_thread::sleep_for(std::chrono::milliseconds(500)); // now a 2-stage async handoff (reshape worker -> convolution)
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        buf.clear();
+        chain.process(buf);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         float peakOverall = 0.0f;
         bool blewUp = false;
@@ -180,14 +184,24 @@ namespace
 
         juce::AudioBuffer<float> buf(2, blockSize);
 
-        // The debounced reload is only *triggered* synchronously (sample-countdown based) -- the
-        // actual IR load/FFT-partitioning happens on ConvolutionMessageQueue's background thread,
-        // which needs real wall-clock time to run (it polls every ~10ms when idle). Spinning
-        // through virtual blocks costs microseconds of real time, nowhere near enough, so this
-        // needs an actual sleep, not just more process() calls.
+        // Three-stage async handoff, each stage needing real wall-clock time (spinning through
+        // virtual blocks doesn't advance any of these background threads' clocks):
+        //   1) reload countdown fires -> IRReshapeWorker shapes the IR (disk read/resample/fade)
+        //      on its own background thread.
+        //   2) BandChain::process() must be called again so it can pull that finished result
+        //      (tryTakeResult) and call convolution.loadImpulseResponse() -- that call has to
+        //      happen on the "audio" thread (this thread, for the test), it's not done by the
+        //      worker directly (see IRReshapeWorker::tryTakeResult's comment for why).
+        //   3) loadImpulseResponse() itself is wait-free -- it hands the real FFT-partitioning
+        //      work to juce::dsp::Convolution's own internal background thread, which also needs
+        //      real time to finish before the new engine is actually swapped in.
         buf.clear();
         chain.process(buf); // triggers the reload countdown to fire and kick off the async load
-        std::this_thread::sleep_for(std::chrono::milliseconds(500)); // now a 2-stage async handoff (reshape worker -> convolution)
+        std::this_thread::sleep_for(std::chrono::milliseconds(500)); // stage 1
+
+        buf.clear();
+        chain.process(buf); // stage 2: pulls the shaped IR and calls loadImpulseResponse()
+        std::this_thread::sleep_for(std::chrono::milliseconds(500)); // stage 3
 
         buf.clear();
         buf.setSample(0, 0, 1.0f);
@@ -240,8 +254,12 @@ namespace
             BandChain::MacroValues v;
             v.irIndex = (i * (int) catalog.size()) / Params::maxBands; // spread across short->long IRs
             v.dryWetPercent = 100.0f;
+            chains[(size_t) i]->setMacroValues(v); // was missing -- every band was silently using irIndex 0
             chains[(size_t) i]->process(buf); // trigger each band's async load
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        for (auto& c : chains)
+            c->process(buf); // pull each band's shaped IR and call loadImpulseResponse()
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         std::mt19937 rng(7);
@@ -279,6 +297,13 @@ int main()
     const int blockSize = 512;
 
     std::cout << "Resolved IR root: " << IRLibrary::resolveIRRoot().getFullPathName() << "\n";
+    {
+        const auto& catalog = IRLibrary::getCatalog();
+        std::cout << "Catalog size: " << catalog.size() << " (factory = " << IRLibrary::factoryCatalogSize << ")\n";
+        for (size_t i = (size_t) IRLibrary::factoryCatalogSize; i < catalog.size(); ++i)
+            std::cout << "  custom[" << i << "]: " << catalog[i].displayName
+                       << "  (" << catalog[i].relativePath << ")\n";
+    }
 #if defined(NDEBUG)
     std::cout << "Build config: Release\n\n";
 #else

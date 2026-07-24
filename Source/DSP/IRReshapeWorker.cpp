@@ -27,9 +27,19 @@ void IRReshapeWorker::run()
 
             didWork = true;
 
+            // The shaping itself (disk read, resample, fade envelope) is the expensive part and
+            // stays off the audio thread. The result just sits in the slot until BandChain::
+            // process() picks it up and hands it to juce::dsp::Convolution itself -- that call
+            // has to happen on the audio thread (see tryTakeResult()'s comment), so we don't call
+            // into `chain` here at all.
             juce::AudioBuffer<float> shaped;
             if (IRProcessor::buildShapedIR(job.irIndex, job.sampleRate, job.fadeInMs, job.fadeOutPercent, job.stretch, shaped))
-                chain->applyLoadedIR(std::move(shaped), job.sampleRate);
+            {
+                const juce::SpinLock::ScopedLockType lock(slotLock);
+                slot.result = std::move(shaped);
+                slot.resultSampleRate = job.sampleRate;
+                slot.resultReady = true;
+            }
 
             if (threadShouldExit())
                 return;

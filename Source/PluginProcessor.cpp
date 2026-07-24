@@ -117,6 +117,13 @@ void MultibandConvolverAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
 {
     juce::ScopedNoDenormals noDenormals;
 
+    if (pendingFullReset.exchange(false, std::memory_order_acq_rel))
+    {
+        splitter.reset();
+        for (auto& chain : bandChains)
+            chain->reset();
+    }
+
     const int numSamples = buffer.getNumSamples();
     const int numChannels = buffer.getNumChannels();
 
@@ -182,6 +189,10 @@ void MultibandConvolverAudioProcessor::resetAllParametersToDefault()
 {
     for (auto* param : getParameters())
         param->setValueNotifyingHost(param->getDefaultValue());
+
+    // See the header comment on pendingFullReset: the actual DSP reset() calls happen on the
+    // audio thread, at the top of the next processBlock().
+    pendingFullReset.store(true, std::memory_order_release);
 }
 
 // This creates new instances of the plugin

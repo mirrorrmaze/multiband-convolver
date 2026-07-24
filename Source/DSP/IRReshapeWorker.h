@@ -66,12 +66,40 @@ public:
         notify();
     }
 
+    // Audio thread only -- called from BandChain::process(). If the background thread has
+    // finished shaping an IR for `targetChain`, moves it into outBuffer/outSampleRate and
+    // returns true (consuming it). This exists because juce::dsp::Convolution's threading
+    // contract requires loadImpulseResponse() itself to be called from the same thread that
+    // calls process() -- its "wait-free" guarantee means that call won't block, not that it's
+    // safe to invoke concurrently from a separate thread. So the expensive shaping (disk read,
+    // resample, fade envelope) happens here on the background thread, but the actual handoff
+    // into the Convolution object happens back on the audio thread, in BandChain::process().
+    bool tryTakeResult(BandChain& targetChain, juce::AudioBuffer<float>& outBuffer, double& outSampleRate)
+    {
+        const juce::SpinLock::ScopedLockType lock(slotLock);
+        for (auto& slot : slots)
+        {
+            if (slot.chain == &targetChain && slot.resultReady)
+            {
+                outBuffer = std::move(slot.result);
+                outSampleRate = slot.resultSampleRate;
+                slot.resultReady = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
 private:
     struct Slot
     {
         BandChain* chain = nullptr;
         Job job;
         bool pending = false;
+
+        juce::AudioBuffer<float> result;
+        double resultSampleRate = 44100.0;
+        bool resultReady = false;
     };
     std::array<Slot, (size_t) Params::maxBands> slots;
     juce::SpinLock slotLock;

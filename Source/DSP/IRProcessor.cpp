@@ -39,21 +39,32 @@ namespace IRProcessor
                 data[i] *= (float) i / (float) juce::jmax(1, fadeInSamples);
         }
 
-        // Fade out: fadeOutPercent (0-100) of the tail is progressively tapered to silence, giving
-        // a gated-reverb-style shortening at high settings.
-        const int fadeOutSamples = juce::jlimit(0, stretchedLength, (int) (stretchedLength * (fadeOutPercent * 0.01f)));
-        if (fadeOutSamples > 0)
+        // Fade out: a decay/length control, like Kilohearts Convolver's -- it actually shortens
+        // the IR's audible tail rather than just tapering a fraction of the existing one in place
+        // (which left the buffer's stored length unchanged even at 100%, so cranking it never
+        // actually sounded short/gated -- just a gradual decline across the full original tail).
+        // 0% keeps the full natural tail; 100% gates it down to a small fraction of its original
+        // length. A short fade-to-zero right at the new cut point avoids a click from the
+        // truncation itself.
+        const float minKeepFraction = 0.02f; // never truncate to literally nothing
+        const float keepFraction = 1.0f - (fadeOutPercent * 0.01f) * (1.0f - minKeepFraction);
+        const int keptLength = juce::jlimit(64, stretchedLength, (int) std::round(stretchedLength * keepFraction));
+
+        if (keptLength < stretchedLength)
         {
-            const int fadeStart = stretchedLength - fadeOutSamples;
+            const int clickFadeSamples = juce::jmin(keptLength, (int) (0.01 * sampleRate)); // ~10ms
+            const int fadeStart = keptLength - clickFadeSamples;
             for (int ch = 0; ch < srcChannels; ++ch)
             {
                 auto* data = outShapedIR.getWritePointer(ch);
-                for (int i = 0; i < fadeOutSamples; ++i)
+                for (int i = 0; i < clickFadeSamples; ++i)
                 {
-                    const float g = 1.0f - ((float) i / (float) fadeOutSamples);
+                    const float g = 1.0f - ((float) i / (float) clickFadeSamples);
                     data[fadeStart + i] *= g;
                 }
             }
+
+            outShapedIR.setSize(srcChannels, keptLength, true, false, true); // true = keep existing content
         }
 
         return true;

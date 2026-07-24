@@ -55,10 +55,18 @@ target_compile_definitions(MultibandConvolver
         JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
+juce_add_binary_data(MultibandConvolverTextures SOURCES
+    Resources/Textures/knob_metal.jpg
+    Resources/Textures/chassis_metal.jpg
+    Resources/Fonts/Jost-Regular.ttf
+    Resources/Fonts/Jost-SemiBold.ttf
+)
+
 target_link_libraries(MultibandConvolver
     PRIVATE
         juce::juce_audio_utils
         juce::juce_dsp
+        MultibandConvolverTextures
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

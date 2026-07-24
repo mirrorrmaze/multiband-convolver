@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "Params/Identifiers.h"
+#include "DSP/IRLibrary.h"
 
 namespace
 {
@@ -52,6 +53,11 @@ void MultibandConvolverAudioProcessorEditor::showHeaderMenu()
     menu.addItem("Open Presets Folder", [this]
     {
         presetManager.getPresetsDirectory().revealToUser();
+    });
+    menu.addItem("Open IR Library Folder", []
+    {
+        IRLibrary::getCustomIRDirectory(); // ensures Custom/ exists so it's visible right away
+        IRLibrary::resolveIRRoot().revealToUser();
     });
     menu.addItem("About", [this] { showAboutPopup(); });
 
@@ -106,7 +112,7 @@ MultibandConvolverAudioProcessorEditor::MultibandConvolverAudioProcessorEditor(M
     setLookAndFeel(&lookAndFeel);
 
     titleLabel.setText("MULTIBAND CONVOLVER", juce::dontSendNotification);
-    titleLabel.setFont(juce::Font(juce::FontOptions(15.0f, juce::Font::bold)));
+    titleLabel.setFont(juce::Font(juce::FontOptions(15.0f, juce::Font::bold)).withExtraKerningFactor(0.06f));
     titleLabel.setColour(juce::Label::textColourId, LookAndFeelSaturnish::text.withAlpha(0.85f));
     titleLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(titleLabel);
@@ -175,8 +181,7 @@ void MultibandConvolverAudioProcessorEditor::paint(juce::Graphics& g)
 {
     g.fillAll(LookAndFeelSaturnish::background);
 
-    g.setColour(LookAndFeelSaturnish::panel);
-    g.fillRect(getLocalBounds().removeFromTop(headerHeight));
+    lookAndFeel.drawChassisPanel(g, getLocalBounds().removeFromTop(headerHeight).toFloat(), true);
 }
 
 void MultibandConvolverAudioProcessorEditor::resized()

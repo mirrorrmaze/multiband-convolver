@@ -43,9 +43,8 @@ public:
     // Processes `buffer` (this band's already-crossover-split signal) in place.
     void process(juce::AudioBuffer<float>& buffer);
 
-    // Called from IRReshapeWorker's background thread once a reshaped IR is ready.
-    // dsp::Convolution::loadImpulseResponse() is explicitly designed to be safe to call
-    // concurrently with process() running on the audio thread.
+    // Called from process() (audio thread) once IRReshapeWorker has a reshaped IR ready. Must
+    // stay on the audio thread -- see IRReshapeWorker::tryTakeResult()'s comment for why.
     void applyLoadedIR(juce::AudioBuffer<float>&& shaped, double sr);
 
 private:

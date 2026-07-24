@@ -1,4 +1,5 @@
 #include "BandChain.h"
+#include <cmath>
 
 BandChain::BandChain(juce::dsp::ConvolutionMessageQueue& sharedQueue, IRReshapeWorker& sharedReshapeWorker)
     : convolution(sharedQueue), reshapeWorker(sharedReshapeWorker)
@@ -65,8 +66,11 @@ void BandChain::applyToneCoefficients()
 
 void BandChain::applyLoadedIR(juce::AudioBuffer<float>&& shaped, double sr)
 {
-    // Called from IRReshapeWorker's background thread -- convolution.loadImpulseResponse() is
-    // explicitly documented as safe to call concurrently with process() on the audio thread.
+    // Must be called from the audio thread (see the header comment) -- JUCE's own docs for
+    // Convolution say load calls "must be synchronised with process() calls, which in practice
+    // means making the load() call from the audio thread." The call itself is wait-free (JUCE
+    // defers the actual engine-building work to its own internal background thread via the
+    // shared ConvolutionMessageQueue), so this doesn't reintroduce the CPU-spike problem.
     convolution.loadImpulseResponse(std::move(shaped), sr,
                                      juce::dsp::Convolution::Stereo::yes,
                                      juce::dsp::Convolution::Trim::no,
@@ -102,6 +106,16 @@ void BandChain::setMacroValues(const MacroValues& values)
 void BandChain::process(juce::AudioBuffer<float>& buffer)
 {
     const int numSamples = buffer.getNumSamples();
+
+    // If the background worker has finished shaping a new IR, hand it to the convolution engine
+    // here -- on the audio thread, as required (see applyLoadedIR()'s comment). This check is
+    // just a spin-locked pointer scan across a handful of slots, not the actual shaping work.
+    {
+        juce::AudioBuffer<float> readyIR;
+        double readySr = sampleRate;
+        if (reshapeWorker.tryTakeResult(*this, readyIR, readySr))
+            applyLoadedIR(std::move(readyIR), readySr);
+    }
 
     // Debounced reshape trigger: coalesces rapid knob movement into one request ~40ms after the
     // last change. The request itself is a handful of POD fields handed to the shared background
@@ -148,6 +162,29 @@ void BandChain::process(juce::AudioBuffer<float>& buffer)
 
     toneLowShelf.process(ctx);
     toneHighShelf.process(ctx);
+
+    // Self-heal against non-finite samples (NaN/Inf) before they can reach the output or, worse,
+    // get folded into the feedback tap and recirculate forever. An IIR filter (crossover, tone,
+    // feedback DC blocker) that ever ingests a non-finite sample stays corrupted on every future
+    // block -- y[n] depends on y[n-1] -- and neither changing a parameter nor the GUI's Reset
+    // button (which only resets parameter *values*, not filter *state*) would clear that on its
+    // own. If this fires, silence this block and reset every stateful DSP object in the chain so
+    // the *next* block starts from clean state instead of staying poisoned indefinitely.
+    bool nonFinite = false;
+    for (int ch = 0; ch < buffer.getNumChannels() && ! nonFinite; ++ch)
+    {
+        auto* data = buffer.getReadPointer(ch);
+        for (int i = 0; i < numSamples; ++i)
+        {
+            if (! std::isfinite(data[i])) { nonFinite = true; break; }
+        }
+    }
+
+    if (nonFinite)
+    {
+        buffer.clear();
+        reset();
+    }
 
     // Shape this block's post-tone wet signal into the feedback tap for *next* block, so next
     // block's addition above is a plain add with no further processing needed mid-flight.

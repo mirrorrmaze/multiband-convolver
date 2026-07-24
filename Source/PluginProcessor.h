@@ -53,6 +53,12 @@ public:
 private:
     void updateBandMacrosFromParameters();
 
+    // Set from the GUI thread by resetAllParametersToDefault(), consumed at the top of the next
+    // processBlock() call. Actually resetting the DSP objects (as opposed to just their parameter
+    // *values*, which is all the APVTS/host-automation path touches) has to happen on the audio
+    // thread -- these are the same objects processBlock() is concurrently reading/writing.
+    std::atomic<bool> pendingFullReset { false };
+
     juce::dsp::ConvolutionMessageQueue convolutionQueue;
     IRReshapeWorker reshapeWorker; // must construct before bandChains (their ctor takes a reference);
                                    // explicitly shut down in ~MultibandConvolverAudioProcessor() before
