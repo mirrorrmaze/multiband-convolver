@@ -67,7 +67,14 @@ private:
     double sampleRate = 44100.0;
 
     int pendingReloadCountdown = -1; // samples remaining until a debounced reshape request fires; -1 = idle
-    static constexpr int reloadDebounceSamplesAt48k = 48000 / 25; // ~40ms
+    // ~40ms used to let a continuous knob drag squeeze multiple reshapes in before release --
+    // dragging isn't perfectly smooth (mouse-move event gaps, or the reshape work itself briefly
+    // stalling the message thread), so it's easy for a gap to exceed a too-short debounce mid-
+    // drag and fire a full IR resample (real work: Lagrange-interpolating a multi-second buffer)
+    // several times over one gesture instead of once on release -- exactly what shows up as
+    // sustained CPU pressure while dragging Stretch/Fade. Wide enough to comfortably swallow that
+    // jitter; still feels responsive once you actually stop moving the knob.
+    static constexpr int reloadDebounceSamplesAt48k = 48000 / 5; // ~200ms
     float lastFadeInForReload = -1.0f, lastFadeOutForReload = -1.0f, lastStretchForReload = -1.0f;
     int lastIrIndexForReload = -1;
     bool needsInitialLoad = true;
