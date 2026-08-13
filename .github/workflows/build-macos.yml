@@ -6,43 +6,6 @@ on:
 jobs:
   build:
     runs-on: macos-14
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Configure (universal binary: arm64 + x86_64)
-        run: >
-          cmake -B build -G Xcode
-          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13
-
-      - name: Build VST3 + Standalone (Release)
-        run: cmake --build build --config Release --target MultibandConvolver_VST3 MultibandConvolver_Standalone -j 4
-
-      - name: Stage installer payload
-        run: |
-          set -e
-          rm -rf staging
-          mkdir -p "staging/Library/Audio/Plug-Ins/VST3"
-          mkdir -p "staging/Applications"
-          mkdir -p "staging/private/tmp/multibandconvolver_irs_payload"
-          cp -R "build/MultibandConvolver_artefacts/Release/VST3/Multiband Convolver.vst3" "staging/Library/Audio/Plug-Ins/VST3/"
-          cp -R "build/MultibandConvolver_artefacts/Release/Standalone/Multiband Convolver.app" "staging/Applications/"
-          cp -R "Resources/IRs/." "staging/private/tmp/multibandconvolver_irs_payload/"
-          chmod +x Installer/macos/postinstall
-
-      - name: Build .pkg installer
-        run: |
-          pkgbuild \
-            --root staging \
-            --scripts Installer/macos \
-            --identifier com.mirrormaze.multibandconvolver \
-            --version 0.1.0 \
-            --install-location / \
-            "Install Multiband Convolver.pkg"
-
-      - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Install-Multiband-Convolver-macOS
-          path: "Install Multiband Convolver.pkg"
+      - run: echo "hello"
