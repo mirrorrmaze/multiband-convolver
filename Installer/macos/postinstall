@@ -1,0 +1,20 @@
+#!/bin/bash
+# Runs as root during pkg install. The IR library is staged at a neutral, root-writable path
+# (/private/tmp/multibandconvolver_irs_payload) by the build workflow rather than being installed
+# directly, since a plain --install-location under $HOME would resolve to *root's* home (the
+# installer's own identity), not the actual logged-in user's -- so this script figures out who
+# that really is and moves the files into their ~/Documents instead, matching the same
+# ~/Documents/MultibandConvolver/IRs path IRLibrary::resolveIRRoot() already checks (and that the
+# Windows installer uses too).
+set -e
+
+CONSOLE_USER=$(stat -f "%Su" /dev/console)
+USER_HOME=$(eval echo "~$CONSOLE_USER")
+DEST="$USER_HOME/Documents/MultibandConvolver/IRs"
+
+mkdir -p "$DEST"
+cp -R "/private/tmp/multibandconvolver_irs_payload/." "$DEST/"
+chown -R "$CONSOLE_USER" "$USER_HOME/Documents/MultibandConvolver"
+rm -rf "/private/tmp/multibandconvolver_irs_payload"
+
+exit 0

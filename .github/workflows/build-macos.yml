@@ -22,43 +22,20 @@ jobs:
       - name: Stage installer payload
         run: |
           set -e
-          rm -rf staging scripts
+          rm -rf staging
           mkdir -p "staging/Library/Audio/Plug-Ins/VST3"
           mkdir -p "staging/Applications"
           mkdir -p "staging/private/tmp/multibandconvolver_irs_payload"
-          mkdir -p scripts
-
-          cp -R "build/MultibandConvolver_artefacts/Release/VST3/Multiband Convolver.vst3" \
-                "staging/Library/Audio/Plug-Ins/VST3/"
-          cp -R "build/MultibandConvolver_artefacts/Release/Standalone/Multiband Convolver.app" \
-                "staging/Applications/"
+          cp -R "build/MultibandConvolver_artefacts/Release/VST3/Multiband Convolver.vst3" "staging/Library/Audio/Plug-Ins/VST3/"
+          cp -R "build/MultibandConvolver_artefacts/Release/Standalone/Multiband Convolver.app" "staging/Applications/"
           cp -R "Resources/IRs/." "staging/private/tmp/multibandconvolver_irs_payload/"
-
-          # The IR library goes to the *actual* logged-in user's ~/Documents (matching
-          # IRLibrary::resolveIRRoot()'s "user content-pack" location, the same path the Windows
-          # installer uses) -- not achievable via a plain --install-location since this .pkg runs
-          # as root and $HOME/~ would resolve to root's home, not the real user's. Stage the files
-          # at a neutral root-writable path instead and have postinstall move them into place for
-          # whichever account is actually logged in.
-          cat > scripts/postinstall << 'EOF'
-          #!/bin/bash
-          set -e
-          CONSOLE_USER=$(stat -f "%Su" /dev/console)
-          USER_HOME=$(eval echo "~$CONSOLE_USER")
-          DEST="$USER_HOME/Documents/MultibandConvolver/IRs"
-          mkdir -p "$DEST"
-          cp -R "/private/tmp/multibandconvolver_irs_payload/." "$DEST/"
-          chown -R "$CONSOLE_USER" "$USER_HOME/Documents/MultibandConvolver"
-          rm -rf "/private/tmp/multibandconvolver_irs_payload"
-          exit 0
-          EOF
-          chmod +x scripts/postinstall
+          chmod +x Installer/macos/postinstall
 
       - name: Build .pkg installer
         run: |
           pkgbuild \
             --root staging \
-            --scripts scripts \
+            --scripts Installer/macos \
             --identifier com.mirrormaze.multibandconvolver \
             --version 0.1.0 \
             --install-location / \
