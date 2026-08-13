@@ -26,11 +26,18 @@ while the highs bloom in a cathedral, all in one instance.
 
 ## Installing
 
-Grab the latest installer from the [Releases](../../releases) page (Windows only for now --
-macOS support is planned separately). Run `Install Multiband Convolver.exe`, choose Standalone
-and/or VST3 (both are checked by default), and confirm the VST3 install location if you use a
-non-default plugin folder. The installer also places the factory IR library at
-`Documents\MultibandConvolver\IRs`.
+Grab the latest installer from the [Releases](../../releases) page.
+
+**Windows**: run `Install Multiband Convolver.exe`, choose Standalone and/or VST3 (both are
+checked by default), and confirm the VST3 install location if you use a non-default plugin
+folder. The installer also places the factory IR library at `Documents\MultibandConvolver\IRs`.
+
+**Mac**: run `Install Multiband Convolver.pkg` -- it installs the VST3 to
+`/Library/Audio/Plug-Ins/VST3`, the Standalone app to `/Applications`, and the factory IR library
+to `~/Documents/MultibandConvolver/IRs` (universal binary, macOS 10.13+). This installer isn't
+code-signed or notarized (that requires a paid Apple Developer account), so Gatekeeper will block
+it by default -- right-click the .pkg and choose "Open," or approve it under System Settings >
+Privacy & Security > "Open Anyway" after the first blocked attempt. One-time step per machine.
 
 Once installed, add it in your DAW like any other VST3, or launch "Multiband Convolver" directly
 as a standalone app to try it without a DAW.
@@ -89,6 +96,11 @@ installer, install [Inno Setup](https://jrsoftware.org/isinfo.php) and run:
 ISCC.exe Installer\MultibandConvolver.iss
 ```
 
+The Mac build (universal arm64 + x86_64, packaged as a `.pkg`) runs via GitHub Actions on a
+hosted macOS runner -- see `.github/workflows/macos-build.yml`. Trigger it manually from the
+Actions tab (or `gh workflow run macos-build.yml`); the resulting installer is uploaded as a
+downloadable artifact on the run.
+
 There's also an offline DSP verification harness (`Tests/OfflineDspTest.cpp`, target
 `OfflineDspTest`) that checks crossover flatness, feedback safety, and CPU budget at max band
 count -- no audio device or DAW required to run it.
@@ -109,7 +121,8 @@ Tests/                 offline DSP verification harness
 
 ## Known limitations
 
-- Windows only right now; macOS build is planned but not yet set up.
+- The Mac installer isn't code-signed/notarized, so Gatekeeper blocks it by default -- see
+  Installing above for the one-time bypass.
 - A custom IR's position in the picker can still shift as files are added/removed from the
   Custom folder (unlike the factory library's permanent fixed indices). Saved presets and DAW
   projects track the actual file, not just its list position, so they survive that -- but a DAW
