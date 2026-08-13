@@ -1,6 +1,7 @@
 #include "SpectrumBandStrip.h"
 #include "LookAndFeelSaturnish.h"
 #include "../Params/Identifiers.h"
+#include "../Params/ParameterLayout.h"
 
 SpectrumBandStrip::SpectrumBandStrip(MultibandConvolverAudioProcessor& processorToUse)
     : processor(processorToUse)
@@ -96,6 +97,17 @@ void SpectrumBandStrip::addBandAt(float hz)
     const int bandIndex = hitTestBand(hzToX(hz));
     const int insertSplit = bandIndex;
 
+    // Shift each existing band's *settings* (IR, dry/wet, tone, fades, feedback, bypass/solo/
+    // mute -- everything band-specific) up by one slot, from the top down to just above the
+    // split point, so they stay attached to the band a user is actually looking at/hearing
+    // rather than to a numeric index whose frequency meaning is about to change. Both halves of
+    // the split start as a copy of the band being split: the lower half (staying at
+    // `insertSplit`) keeps its settings as-is below, the new upper half (`insertSplit + 1`) gets
+    // an explicit copy right after the shift clears room for it.
+    for (int s = numBands - 1; s > insertSplit; --s)
+        Params::copyBandSettings(processor.apvts, s, s + 1);
+    Params::copyBandSettings(processor.apvts, insertSplit, insertSplit + 1);
+
     // Shift existing split values up by one slot to make room, from the end down to insertSplit.
     for (int s = Params::maxSplitPoints - 2; s >= insertSplit; --s)
     {
@@ -117,6 +129,15 @@ void SpectrumBandStrip::removeBand(int bandIndex)
         return;
 
     const int removeSplit = (bandIndex <= 0) ? 0 : (bandIndex - 1);
+
+    // Shift each surviving band's settings down by one slot to fill the gap left by the removed
+    // band (see addBandAt's comment for the same reasoning in reverse). Band `bandIndex` itself
+    // is discarded -- for band 0 that means the whole array shifts down and the old band 1
+    // effectively becomes the new band 0 (matches "band 0 merges into its right neighbour"); for
+    // any other band, its left neighbour (at `bandIndex - 1`) is left untouched and keeps its
+    // own settings, matching "merges into its left neighbour".
+    for (int s = bandIndex; s < numBands - 1; ++s)
+        Params::copyBandSettings(processor.apvts, s + 1, s);
 
     for (int s = removeSplit; s < Params::maxSplitPoints - 1; ++s)
     {

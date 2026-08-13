@@ -132,4 +132,34 @@ namespace Params
             }
         }
     }
+
+    void copyBandSettings(juce::AudioProcessorValueTreeState& apvts, int fromBand, int toBand)
+    {
+        if (fromBand == toBand)
+            return;
+
+        using IdFn = juce::String (*) (int);
+        static const IdFn idFns[] = {
+            bandIrIndexID, bandDryWetID, bandPreDelayID, bandToneID, bandFadeInID, bandFadeOutID,
+            bandStretchID, bandFeedbackID, bandOutGainID, bandBypassID, bandSoloID, bandMuteID
+        };
+
+        for (auto* idFn : idFns)
+        {
+            auto* fromParam = apvts.getParameter(idFn(fromBand));
+            auto* toParam = apvts.getParameter(idFn(toBand));
+            if (fromParam == nullptr || toParam == nullptr)
+                continue;
+
+            // getValue()/setValueNotifyingHost() work in each parameter's own normalised [0,1]
+            // representation, which is the one thing every parameter type (float, int, choice,
+            // bool) shares -- lets this copy generically across all of them without needing a
+            // switch on parameter type.
+            toParam->setValueNotifyingHost(fromParam->getValue());
+        }
+
+        // The IR path property isn't a registered parameter (see bandIrPathID's comment), so it
+        // needs its own copy directly on the state tree.
+        apvts.state.setProperty(bandIrPathID(toBand), apvts.state.getProperty(bandIrPathID(fromBand), {}), nullptr);
+    }
 }

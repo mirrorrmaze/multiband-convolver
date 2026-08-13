@@ -22,4 +22,13 @@ namespace Params
     // (state saved before this existed) or whose file no longer exists is left untouched, keeping
     // whatever numeric index was saved as a reasonable fallback.
     void resolveSelectedIRPaths(juce::AudioProcessorValueTreeState& apvts);
+
+    // Copies every per-band setting (IR choice + its stamped path, Dry/Wet, Tone, Fade In/Out,
+    // Stretch, Feedback, Pre-Delay, Output, Bypass/Solo/Mute) from one band slot to another.
+    // Inserting or removing a band shifts which frequency range a given band *index* covers (see
+    // SpectrumBandStrip::addBandAt/removeBand), so the settings have to move with it -- otherwise
+    // a band index keeps whatever settings it had before, now applied to a different frequency
+    // range than the one they were tuned for (reported as "sounds like the wrong frequency
+    // group" / "the IR isn't on" after adding or removing bands).
+    void copyBandSettings(juce::AudioProcessorValueTreeState& apvts, int fromBand, int toBand);
 }

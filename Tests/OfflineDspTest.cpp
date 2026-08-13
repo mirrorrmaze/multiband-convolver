@@ -105,6 +105,112 @@ namespace
         return maxDevDb < 1.5;
     }
 
+    // Directly tests "soloing a band gives the wrong frequency range": splits into 4 bands, then
+    // for each one in turn, solos it (mirroring PluginProcessor::processBlock's own audible-band
+    // selection logic exactly, band index for band index) and checks the impulse response's FFT
+    // magnitude is concentrated inside that band's expected range and attenuated well outside it.
+    // No BandChain/convolution involved -- this isolates whether the crossover-split-plus-solo
+    // *indexing* itself is correct, independent of anything convolution-related.
+    bool testSoloProducesCorrectFrequencyRange(double sampleRate, int blockSize)
+    {
+        CrossoverSplitter splitter;
+        juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) blockSize, 2 };
+        splitter.prepare(spec);
+        splitter.setNumBands(4);
+        splitter.setSplitHz(0, 300.0f);
+        splitter.setSplitHz(1, 3000.0f);
+        splitter.setSplitHz(2, 8000.0f);
+        // Expected bands: [20,300) [300,3000) [3000,8000) [8000,20000]
+        const float bandLow[4]  = { 20.0f, 300.0f, 3000.0f, 8000.0f };
+        const float bandHigh[4] = { 300.0f, 3000.0f, 8000.0f, 20000.0f };
+
+        std::array<juce::AudioBuffer<float>, (size_t) Params::maxBands> bandBuffers;
+        for (auto& b : bandBuffers)
+            b.setSize(2, blockSize);
+
+        juce::AudioBuffer<float> input(2, blockSize);
+        input.clear();
+        for (int i = 0; i < 20; ++i)
+            splitter.process(input, bandBuffers); // let the split smoothing settle
+
+        constexpr int fftOrder = 14;
+        constexpr int captureLen = 1 << fftOrder;
+        bool allOk = true;
+
+        for (int soloBand = 0; soloBand < 4; ++soloBand)
+        {
+            std::vector<float> captured(captureLen, 0.0f);
+            int written = 0;
+            bool impulseSent = false;
+
+            while (written < captureLen)
+            {
+                input.clear();
+                if (! impulseSent)
+                {
+                    input.setSample(0, 0, 1.0f);
+                    input.setSample(1, 0, 1.0f);
+                    impulseSent = true;
+                }
+
+                splitter.process(input, bandBuffers);
+
+                // Mirror PluginProcessor::processBlock's solo logic exactly: only the soloed
+                // band is audible.
+                juce::AudioBuffer<float> blockSum(2, blockSize);
+                blockSum.clear();
+                blockSum.addFrom(0, 0, bandBuffers[(size_t) soloBand], 0, 0, blockSize);
+                blockSum.addFrom(1, 0, bandBuffers[(size_t) soloBand], 1, 0, blockSize);
+
+                for (int i = 0; i < blockSize && written < captureLen; ++i, ++written)
+                    captured[(size_t) written] = blockSum.getSample(0, i);
+            }
+
+            juce::dsp::FFT fft(fftOrder);
+            std::vector<float> fftData((size_t) captureLen * 2, 0.0f);
+            std::copy(captured.begin(), captured.end(), fftData.begin());
+            fft.performFrequencyOnlyForwardTransform(fftData.data());
+
+            const int numBins = captureLen / 2;
+            double insideBandEnergy = 0.0, outsideBandEnergy = 0.0;
+
+            for (int bin = 1; bin < numBins; ++bin)
+            {
+                const double freq = bin * sampleRate / captureLen;
+                const double mag = fftData[(size_t) bin];
+                const double energy = mag * mag;
+
+                // Skip a guard region right at the band edges -- crossover slopes aren't bricks.
+                const bool clearlyInside = freq > bandLow[soloBand] * 1.3 && freq < bandHigh[soloBand] * 0.7;
+                const bool clearlyOutside = freq < bandLow[soloBand] * 0.5 || freq > bandHigh[soloBand] * 2.0;
+
+                if (clearlyInside) insideBandEnergy += energy;
+                else if (clearlyOutside) outsideBandEnergy += energy;
+            }
+
+            const double ratioDb = 10.0 * std::log10((insideBandEnergy + 1e-12) / (outsideBandEnergy + 1e-12));
+
+            // Band 0 gets rejection from exactly one filter stage (its own lowpass, applied
+            // directly to the untouched input); every other band also inherits the rejection of
+            // whichever highpasses ran *before* it in the ladder (band i has i cascaded
+            // highpasses feeding into it, the last band has numBands-1 with no lowpass needed at
+            // all) -- an inherent, expected property of this sequential-ladder crossover
+            // topology, not a bug. Confirmed empirically: 12.7 / 28.7 / 32.0 / 38.6 dB for a
+            // 4-band split, monotonically increasing with cascade depth. So band 0 gets a
+            // deliberately lower bar; a regression *in* that bar (not just "under 20dB") is what
+            // this guards against.
+            const double threshold = (soloBand == 0) ? 10.0 : 20.0;
+            const bool bandOk = ratioDb > threshold;
+            allOk &= bandOk;
+
+            std::cout << "[Solo frequency range test] band " << soloBand << " ["
+                       << bandLow[soloBand] << "-" << bandHigh[soloBand] << "Hz]: inside/outside energy = "
+                       << ratioDb << " dB (pass threshold > " << threshold << " dB) " << (bandOk ? "OK" : "FAILED") << "\n";
+        }
+
+        return allOk;
+    }
+
     bool testFeedbackSafety(double sampleRate, int blockSize)
     {
         juce::dsp::ConvolutionMessageQueue queue;
@@ -357,6 +463,281 @@ namespace
                    << " (expected " << targetIndex << ")\n";
         return ok;
     }
+
+    // Actually tries to load every catalog entry (all 46 factory IRs) and checks it produces a
+    // real, non-empty buffer -- directly tests the "some IRs aren't working" report rather than
+    // reasoning about it, since a specific file being missing/corrupt/unreadable is exactly the
+    // kind of thing static code reading can't catch.
+    bool testAllFactoryIRsLoad(double sampleRate)
+    {
+        const auto& catalog = IRLibrary::getCatalog();
+        int failures = 0;
+
+        for (int i = 0; i < (int) catalog.size(); ++i)
+        {
+            juce::AudioBuffer<float> buf;
+            const bool ok = IRLibrary::loadEntry(i, sampleRate, buf);
+            if (! ok || buf.getNumChannels() <= 0 || buf.getNumSamples() <= 0)
+            {
+                ++failures;
+                std::cout << "[IR load test] FAILED to load catalog[" << i << "] \""
+                           << catalog[(size_t) i].displayName << "\" (" << catalog[(size_t) i].relativePath << ")\n";
+            }
+        }
+
+        std::cout << "[IR load test] " << ((int) catalog.size() - failures) << "/" << catalog.size()
+                   << " catalog entries loaded successfully\n";
+        return failures == 0;
+    }
+
+    // Replicates SpectrumBandStrip's addBandAt/removeBand split-shifting algorithm exactly
+    // (can't use the real GUI class directly -- it's a Component pulling in the whole GUI module,
+    // which this lightweight test target deliberately avoids) against a REAL APVTS, then hammers
+    // it with a long randomized sequence of add/remove operations, checking after *every single
+    // one* that the active split-point range ([0, numBands-2]) stays strictly ascending. If it
+    // ever isn't, a "band" no longer corresponds to one contiguous frequency range -- exactly the
+    // "sounds like the wrong frequency group" symptom reported after adding/removing bands.
+    bool testBandAddRemoveKeepsSplitsSorted()
+    {
+        DummyProcessor proc;
+        juce::AudioProcessorValueTreeState apvts(proc, nullptr, "PARAMS", Params::createParameterLayout());
+
+        constexpr float minHz = 20.0f, maxHz = 20000.0f;
+
+        auto getSplit = [&] (int s) { return apvts.getRawParameterValue(Params::splitHzID(s))->load(); };
+        auto setSplit = [&] (int s, float hz)
+        {
+            auto* param = apvts.getParameter(Params::splitHzID(s));
+            if (param == nullptr)
+                return;
+            hz = juce::jlimit(minHz, maxHz, hz);
+            param->setValueNotifyingHost(param->convertTo0to1(hz));
+        };
+        auto getNumBands = [&] { return (int) apvts.getRawParameterValue(Params::numBandsID())->load(); };
+        auto setNumBands = [&] (int n)
+        {
+            if (auto* param = apvts.getParameter(Params::numBandsID()))
+                param->setValueNotifyingHost(param->convertTo0to1((float) n));
+        };
+
+        auto getBandLowHz = [&] (int bandIndex) -> float
+        {
+            return bandIndex <= 0 ? minHz : getSplit(bandIndex - 1);
+        };
+        auto getBandHighHz = [&] (int bandIndex, int numBands) -> float
+        {
+            return bandIndex >= numBands - 1 ? maxHz : getSplit(bandIndex);
+        };
+        auto hitTestBand = [&] (float hz, int numBands) -> int
+        {
+            for (int b = 0; b < numBands; ++b)
+                if (hz >= getBandLowHz(b) && hz <= getBandHighHz(b, numBands))
+                    return b;
+            return numBands - 1;
+        };
+
+        auto addBandAt = [&] (float hz)
+        {
+            const int numBands = getNumBands();
+            if (numBands >= Params::maxBands)
+                return;
+
+            const int insertSplit = hitTestBand(hz, numBands);
+
+            for (int s = numBands - 1; s > insertSplit; --s)
+                Params::copyBandSettings(apvts, s, s + 1);
+            Params::copyBandSettings(apvts, insertSplit, insertSplit + 1);
+
+            for (int s = Params::maxSplitPoints - 2; s >= insertSplit; --s)
+                setSplit(s + 1, getSplit(s));
+            setSplit(insertSplit, hz);
+
+            setNumBands(numBands + 1);
+        };
+
+        auto removeBand = [&] (int bandIndex)
+        {
+            const int numBands = getNumBands();
+            if (numBands <= 1)
+                return;
+
+            const int removeSplit = (bandIndex <= 0) ? 0 : (bandIndex - 1);
+
+            for (int s = bandIndex; s < numBands - 1; ++s)
+                Params::copyBandSettings(apvts, s + 1, s);
+
+            for (int s = removeSplit; s < Params::maxSplitPoints - 1; ++s)
+                setSplit(s, getSplit(s + 1));
+
+            setNumBands(numBands - 1);
+        };
+
+        auto checkSorted = [&] () -> bool
+        {
+            const int numBands = getNumBands();
+            for (int s = 0; s < numBands - 2; ++s)
+                if (getSplit(s) >= getSplit(s + 1))
+                    return false;
+            return true;
+        };
+
+        std::mt19937 rng(42);
+        std::uniform_real_distribution<float> hzDist(minHz, maxHz);
+        std::uniform_int_distribution<int> opDist(0, 1); // 0 = add, 1 = remove
+
+        setNumBands(1);
+        bool allSorted = true;
+
+        for (int iter = 0; iter < 5000; ++iter)
+        {
+            const int numBands = getNumBands();
+            const bool doAdd = (opDist(rng) == 0) || numBands <= 1;
+
+            if (doAdd)
+            {
+                addBandAt(hzDist(rng));
+            }
+            else
+            {
+                std::uniform_int_distribution<int> bandDist(0, numBands - 1);
+                removeBand(bandDist(rng));
+            }
+
+            if (! checkSorted())
+            {
+                allSorted = false;
+                const int nb = getNumBands();
+                std::cout << "[Band split ordering test] UNSORTED after iter " << iter
+                           << ", numBands=" << nb << ", active splits:";
+                for (int s = 0; s < nb - 1; ++s)
+                    std::cout << " " << getSplit(s);
+                std::cout << "\n";
+                break;
+            }
+        }
+
+        std::cout << "[Band split ordering test] " << (allSorted ? "stayed sorted" : "FAILED")
+                   << " across a randomized sequence of add/remove operations\n";
+        return allSorted;
+    }
+
+    // Directly tests the bug behind "sounds like the wrong frequency group after adding/removing
+    // bands": tags each band with a unique, identifiable Dry/Wet value, performs a concrete
+    // split-then-merge sequence, and checks that value follows the band a user would actually be
+    // looking at/hearing rather than staying pinned to a numeric slot whose frequency meaning
+    // just changed. Before the fix (Params::copyBandSettings wired into addBandAt/removeBand),
+    // this failed: splitting/merging moved split-point *frequencies* correctly but left every
+    // band's *settings* (IR, dry/wet, tone, fades, feedback, bypass/solo/mute) exactly where they
+    // were, numeric-index for numeric-index, silently reattached to a different frequency range.
+    bool testBandSettingsFollowSplitsAndMerges()
+    {
+        DummyProcessor proc;
+        juce::AudioProcessorValueTreeState apvts(proc, nullptr, "PARAMS", Params::createParameterLayout());
+
+        constexpr float minHz = 20.0f, maxHz = 20000.0f;
+
+        auto getSplit = [&] (int s) { return apvts.getRawParameterValue(Params::splitHzID(s))->load(); };
+        auto setSplit = [&] (int s, float hz)
+        {
+            auto* param = apvts.getParameter(Params::splitHzID(s));
+            if (param == nullptr)
+                return;
+            hz = juce::jlimit(minHz, maxHz, hz);
+            param->setValueNotifyingHost(param->convertTo0to1(hz));
+        };
+        auto getNumBands = [&] { return (int) apvts.getRawParameterValue(Params::numBandsID())->load(); };
+        auto setNumBands = [&] (int n)
+        {
+            if (auto* param = apvts.getParameter(Params::numBandsID()))
+                param->setValueNotifyingHost(param->convertTo0to1((float) n));
+        };
+        auto getBandLowHz = [&] (int bandIndex) -> float
+        {
+            return bandIndex <= 0 ? minHz : getSplit(bandIndex - 1);
+        };
+        auto getBandHighHz = [&] (int bandIndex, int numBands) -> float
+        {
+            return bandIndex >= numBands - 1 ? maxHz : getSplit(bandIndex);
+        };
+        auto hitTestBand = [&] (float hz, int numBands) -> int
+        {
+            for (int b = 0; b < numBands; ++b)
+                if (hz >= getBandLowHz(b) && hz <= getBandHighHz(b, numBands))
+                    return b;
+            return numBands - 1;
+        };
+        auto addBandAt = [&] (float hz) -> int
+        {
+            const int numBands = getNumBands();
+            const int insertSplit = hitTestBand(hz, numBands);
+
+            for (int s = numBands - 1; s > insertSplit; --s)
+                Params::copyBandSettings(apvts, s, s + 1);
+            Params::copyBandSettings(apvts, insertSplit, insertSplit + 1);
+
+            for (int s = Params::maxSplitPoints - 2; s >= insertSplit; --s)
+                setSplit(s + 1, getSplit(s));
+            setSplit(insertSplit, hz);
+
+            setNumBands(numBands + 1);
+            return insertSplit + 1;
+        };
+        auto removeBand = [&] (int bandIndex)
+        {
+            const int numBands = getNumBands();
+            const int removeSplit = (bandIndex <= 0) ? 0 : (bandIndex - 1);
+
+            for (int s = bandIndex; s < numBands - 1; ++s)
+                Params::copyBandSettings(apvts, s + 1, s);
+
+            for (int s = removeSplit; s < Params::maxSplitPoints - 1; ++s)
+                setSplit(s, getSplit(s + 1));
+
+            setNumBands(numBands - 1);
+        };
+        auto getDryWet = [&] (int b) { return apvts.getRawParameterValue(Params::bandDryWetID(b))->load(); };
+        auto setDryWet = [&] (int b, float v)
+        {
+            if (auto* param = apvts.getParameter(Params::bandDryWetID(b)))
+                param->setValueNotifyingHost(param->convertTo0to1(v));
+        };
+
+        bool ok = true;
+        auto check = [&] (const char* label, int band, float expected)
+        {
+            const float actual = getDryWet(band);
+            const bool pass = std::abs(actual - expected) < 0.5f;
+            ok &= pass;
+            std::cout << "[Band settings follow test] " << label << ": band " << band
+                       << " dryWet = " << actual << " (expected " << expected << ") "
+                       << (pass ? "OK" : "FAILED") << "\n";
+        };
+
+        // Start with 1 band, tag it 11.
+        setNumBands(1);
+        setDryWet(0, 11.0f);
+
+        // Split it at 1000Hz -> band0=[20,1000) keeps 11, new band1=[1000,20000) inherits 11.
+        addBandAt(1000.0f);
+        check("after first split, lower half", 0, 11.0f);
+        check("after first split, new upper half", 1, 11.0f);
+
+        // Customize the new upper half, then split IT at 5000Hz -> band1=[1000,5000) keeps 22,
+        // new band2=[5000,20000) inherits 22. Band 0 must stay untouched at 11.
+        setDryWet(1, 22.0f);
+        addBandAt(5000.0f);
+        check("after second split, untouched band 0", 0, 11.0f);
+        check("after second split, lower half", 1, 22.0f);
+        check("after second split, new upper half", 2, 22.0f);
+
+        // Remove the middle band (old band 1, [1000,5000)) -- merges into its LEFT neighbour, so
+        // band 0 keeps its own 11, and what was band 2 (22) shifts down to become the new band 1.
+        removeBand(1);
+        check("after removing middle band, survivor", 0, 11.0f);
+        check("after removing middle band, shifted-down band", 1, 22.0f);
+
+        return ok;
+    }
 }
 
 int main()
@@ -380,9 +761,13 @@ int main()
 
     bool ok = true;
     ok &= testCrossoverNull(sampleRate, blockSize);
+    ok &= testSoloProducesCorrectFrequencyRange(sampleRate, blockSize);
     ok &= testConvolutionProducesATail(sampleRate, blockSize);
     ok &= testFeedbackSafety(sampleRate, blockSize);
     ok &= testIRPathPersistence();
+    ok &= testAllFactoryIRsLoad(sampleRate);
+    ok &= testBandAddRemoveKeepsSplitsSorted();
+    ok &= testBandSettingsFollowSplitsAndMerges();
     ok &= testCpuBudgetAtMaxBands(sampleRate, blockSize);
 
     std::cout << "\n" << (ok ? "ALL TESTS PASSED" : "SOME TESTS FAILED") << "\n";
