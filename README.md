@@ -16,9 +16,9 @@ while the highs bloom in a cathedral, all in one instance.
 - **Independent convolution per band** against a selectable impulse response.
 - **Per-band macro controls**: Dry/Wet, Tone (tilt EQ), Fade In, Fade Out (decay/length control),
   Stretch, Feedback, Pre-Delay, Output, plus Bypass/Solo/Mute.
-- **46 curated factory impulse responses** (real rooms, halls, garages, springs, plates -- see
-  `Resources/IRs/CREDITS.md` for sourcing/licensing) across Residential, Commercial, Public,
-  Historical, Outdoors, and Textures categories.
+- **95 curated factory impulse responses** (real rooms, halls, garages, springs, plates, and a
+  handful of oddball found-object textures -- see `Resources/IRs/CREDITS.md` for sourcing/
+  licensing) across Residential, Commercial, Public, Historical, Outdoors, and Textures categories.
 - **Custom IR support**: drop your own WAV/AIFF/FLAC files into the IR library's `Custom` folder
   (via the `...` menu -> "Open IR Library Folder") and they show up in the picker right alongside
   the factory library.
@@ -72,7 +72,7 @@ happens on the audio thread, though: JUCE's docs are explicit that `loadImpulseR
 be called from the same thread that calls `process()`, so the background thread only prepares
 the shaped buffer, and the audio thread picks it up and loads it on its next block.
 
-The IR picker itself is the 46-entry factory library (fixed order, safe to reference by index
+The IR picker itself is the 95-entry factory library (fixed order, safe to reference by index
 forever) followed by anything found in the `Custom` subfolder, scanned once at startup. Since
 that scan's order depends on whatever's in the folder at the time, saved presets and DAW projects
 store the selected file's actual path alongside the numeric index, so reloading one re-resolves

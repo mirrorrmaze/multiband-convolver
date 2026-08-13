@@ -28,7 +28,7 @@ namespace IRLibrary
     // entries are appended) -- 46 MIT-licensed IRs cherry-picked from itsmusician/IR-Library (see
     // Resources/IRs/CREDITS.md). This range's order/indices must never change after shipping a
     // version with saved presets/automation; append new factory entries at the end instead.
-    constexpr int factoryCatalogSize = 46;
+    constexpr int factoryCatalogSize = 95;
 
     // Resolves the root folder that contains the category subfolders (Residential/, Commercial/,
     // etc.) and the Custom/ subfolder. Searches, in order: next to the running plugin/standalone

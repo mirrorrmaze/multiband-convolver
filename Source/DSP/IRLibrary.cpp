@@ -78,6 +78,76 @@ namespace IRLibrary
             { "Car Interior",                 "Textures", "Textures/Car Interior.wav" },
             { "Storm Drain",                  "Textures", "Textures/Storm Drain.wav" },
             { "Catamaran Hull",               "Textures", "Textures/Catamaran Hull.wav" },
+
+            // --- Third batch (appended -- do not reorder, indices above are load-bearing for
+            // saved presets/automation on band{N}_irIndex) ---
+
+            // Residential
+            { "College House Foyer Stairwell","Residential", "Residential/College House Foyer Stairwell.wav" },
+            { "College House Master Bedroom", "Residential", "Residential/College House Master Bedroom.wav" },
+            { "College House Office",         "Residential", "Residential/College House Office.wav" },
+            { "College House Living Room",    "Residential", "Residential/College House Living Room.wav" },
+            { "Unknown House Lobby",          "Residential", "Residential/Unknown House Lobby.wav" },
+            { "Old Home Guest Bath",          "Residential", "Residential/Old Home Guest Bath.wav" },
+            { "Old Home Hallway",             "Residential", "Residential/Old Home Hallway.wav" },
+            { "Ranch House Bedroom",          "Residential", "Residential/Ranch House Bedroom.wav" },
+            { "Ranch House Living Room",      "Residential", "Residential/Ranch House Living Room.wav" },
+            { "Colonial Bedroom (Mid Treatment)","Residential", "Residential/Colonial Bedroom Mid Treatment.wav" },
+
+            // Commercial
+            { "Orlando Ballroom",             "Commercial", "Commercial/Orlando Ballroom.wav" },
+            { "Gold Coffee Shop Lobby",       "Commercial", "Commercial/Gold Coffee Shop Lobby.wav" },
+            { "Gold Coffee Shop Quiet Room",  "Commercial", "Commercial/Gold Coffee Shop Quiet Room.wav" },
+            { "Tall Coffee Shop Distant",     "Commercial", "Commercial/Tall Coffee Shop Distant.wav" },
+
+            // Public
+            { "MSU Arena Upper Bleachers",    "Public", "Public/MSU Arena Upper Bleachers.wav" },
+            { "MSB Brick Stairwell",          "Public", "Public/MSB Brick Stairwell.wav" },
+            { "PCC Prefunction Hall",         "Public", "Public/PCC Prefunction Hall.wav" },
+            { "OCCC Theater Storage Barrier", "Public", "Public/OCCC Theater Storage Barrier.wav" },
+
+            // Historical
+            { "Menorcan Bunker 2 Entry",      "Historical", "Historical/Menorcan Bunker 2 Entry.wav" },
+            { "Menorcan Bunker 2 Stairwell",  "Historical", "Historical/Menorcan Bunker 2 Stairwell.wav" },
+
+            // Outdoors
+            { "Gas Station Overhang",         "Outdoors", "Outdoors/Gas Station Overhang.wav" },
+            { "Angled Loading Dock",          "Outdoors", "Outdoors/Angled Loading Dock.wav" },
+            { "Flat Loading Dock",            "Outdoors", "Outdoors/Flat Loading Dock.wav" },
+            { "Theme Park Employee Garage",   "Outdoors", "Outdoors/Theme Park Employee Garage.wav" },
+            { "Bower Ponds Amphitheatre Stage","Outdoors", "Outdoors/Bower Ponds Amphitheatre Stage.wav" },
+            { "University Garage Ramp",       "Outdoors", "Outdoors/University Garage Ramp.wav" },
+            { "Medium Gazebo",                "Outdoors", "Outdoors/Medium Gazebo.wav" },
+            { "Playground Slide",             "Outdoors", "Outdoors/Playground Slide.wav" },
+            { "PCC North Terrace",            "Outdoors", "Outdoors/PCC North Terrace.wav" },
+            { "Suburban Apartment Avenue",    "Outdoors", "Outdoors/Suburban Apartment Avenue.wav" },
+            { "Old Home Backyard",            "Outdoors", "Outdoors/Old Home Backyard.wav" },
+
+            // Textures (bonus, non-room) -- plates
+            { "Conner Plate Short",           "Textures", "Textures/Conner Plate Short.wav" },
+            { "Conner Plate Medium",          "Textures", "Textures/Conner Plate Medium.wav" },
+            { "Conner Plate Long",            "Textures", "Textures/Conner Plate Long.wav" },
+            { "Conner Plate Huge",            "Textures", "Textures/Conner Plate Huge.wav" },
+
+            // Textures (bonus, non-room) -- springs
+            { "Amateur Speaker Spring",       "Textures", "Textures/Amateur Speaker Spring.wav" },
+            { "Boom Arm Spring",              "Textures", "Textures/Boom Arm Spring.wav" },
+            { "Reverb Amp 500 Spring",        "Textures", "Textures/Reverb Amp 500 Spring.wav" },
+            { "Space Heater Spring Tank",     "Textures", "Textures/Space Heater Spring Tank.wav" },
+            { "Spring Tube Toy",              "Textures", "Textures/Spring Tube Toy.wav" },
+
+            // Textures (bonus, non-room) -- found objects
+            { "Basilica Dome Glass Bowls",    "Textures", "Textures/Basilica Dome Glass Bowls.wav" },
+            { "Conch Shell Sweep",            "Textures", "Textures/Conch Shell Sweep.wav" },
+            { "Rusty Steel Sheet",            "Textures", "Textures/Rusty Steel Sheet.wav" },
+            { "Nitro Cold Brew Keg",          "Textures", "Textures/Nitro Cold Brew Keg.wav" },
+            { "Broadsword Contact",           "Textures", "Textures/Broadsword Contact.wav" },
+            { "Toilet Bowl",                  "Textures", "Textures/Toilet Bowl.wav" },
+            { "Propane Tank Knuckle",         "Textures", "Textures/Propane Tank Knuckle.wav" },
+
+            // Textures (bonus, non-room) -- enclosed spaces
+            { "Old Home Oven",                "Textures", "Textures/Old Home Oven.wav" },
+            { "2002 Sedan Interior",          "Textures", "Textures/2002 Sedan Interior.wav" },
             };
 
             jassert((int) catalog.size() == factoryCatalogSize);

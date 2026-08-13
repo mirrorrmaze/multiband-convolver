@@ -7,9 +7,11 @@ here anyway since it's good practice and the source library is genuinely excelle
 also made factory IRs for Kilohearts Convolver).
 
 Full library: ~1GB / 738 IRs across rooms, plates, springs, hardware, instruments, and more. This
-plugin bundles a curated 46-file subset (~52MB) covering a variety of real rooms (residential,
-commercial, public, historical, outdoors) plus a handful of bonus textures (plate, springs, a car
-interior, a storm drain, a boat hull).
+plugin bundles a curated 95-file subset covering a wide variety of real rooms (residential,
+commercial, public, historical, outdoors) plus a larger set of bonus textures -- plates (four
+different decay lengths), springs (five different tanks/units), and oddball found-object
+resonances (glass bowls, a conch shell, a propane tank, a toilet bowl, a broadsword, a car
+interior, a storm drain, a boat hull, and more).
 
 If you find the source library useful, the author accepts support at https://ko-fi.com/musician.
 
