@@ -19,7 +19,20 @@ namespace IRProcessor
         // perceived density/pitch of the tail rather than doing a true time-stretch -- a
         // deliberate, pragmatic trade-off (see architecture notes) since reverb tails are
         // diffuse/unpitched content where that artifact is least perceptible.
-        const int stretchedLength = juce::jmax(1, (int) std::round(srcLength * stretch));
+        //
+        // Hard-capped in absolute duration (not just the 0.25x-4x multiplier) because
+        // juce::dsp::Convolution's per-block cost scales with IR length: the library's longer
+        // factory IRs (up to ~11.6s) at 4x stretch would build a ~46s kernel, and that's real,
+        // sustained CPU cost once loaded -- not a one-off spike a bigger debounce window can fix
+        // (confirmed via user report of 140%+ CPU simply sitting at a non-default Stretch value,
+        // not just while dragging it). 6s still covers the full 4x range for the large majority
+        // of the library (most factory IRs are under 1.5s) while leaving real headroom on the
+        // worst case: testCpuBudgetAtMaxBands hit a 0.98 realtime factor at a 12s cap with 8
+        // bands all stretched to 4x -- uncomfortably close to blowing the real-time deadline
+        // before accounting for other plugins/GUI/OS jitter sharing the same audio thread.
+        constexpr double maxShapedIRSeconds = 6.0;
+        const int maxShapedIRSamples = (int) (maxShapedIRSeconds * sampleRate);
+        const int stretchedLength = juce::jlimit(1, maxShapedIRSamples, (int) std::round(srcLength * stretch));
         outShapedIR.setSize(srcChannels, stretchedLength, false, false, true);
 
         const double ratio = (double) srcLength / (double) stretchedLength;

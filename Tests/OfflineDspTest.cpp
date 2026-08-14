@@ -363,6 +363,7 @@ namespace
             BandChain::MacroValues v;
             v.irIndex = (i * (int) catalog.size()) / Params::maxBands; // spread across short->long IRs
             v.dryWetPercent = 100.0f;
+            v.stretch = 4.0f; // worst case: max stretch on top of whatever IR length it lands on
             chains[(size_t) i]->setMacroValues(v); // was missing -- every band was silently using irIndex 0
             chains[(size_t) i]->process(buf); // trigger each band's async load
         }
