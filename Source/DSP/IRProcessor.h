@@ -13,4 +13,10 @@ namespace IRProcessor
     // Returns false (leaving outShapedIR empty) if the catalog entry couldn't be loaded.
     bool buildShapedIR(int irIndex, double sampleRate, float fadeInMs, float fadeOutPercent, float stretch,
                         juce::AudioBuffer<float>& outShapedIR);
+
+    // The fade-in ramp length and fade-out keep-length (in samples) for a buffer of
+    // `naturalLength` samples. Factored out of buildShapedIR so IRWaveformView's overlay can
+    // compute the exact same region without duplicating (and risking drifting from) this math.
+    void computeFadeRegion(int naturalLength, double sampleRate, float fadeInMs, float fadeOutPercent,
+                            int& outFadeInSamples, int& outKeptLength);
 }
