@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../PluginProcessor.h"
 #include "KnobPopup.h"
+#include "IRWaveformView.h"
 
 // Lower-half macro knob rack. Shows the currently-selected band's controls; SliderAttachment /
 // ComboBoxAttachment / ButtonAttachment objects are destroyed and rebuilt against
@@ -24,8 +25,9 @@ public:
 private:
     void rebuildAttachments();
     void layoutKnob(juce::Rectangle<int> area, juce::Slider& slider, juce::Label& label);
-    void wireKnobPopup(juce::Slider& slider, const juce::String& unitSuffix, int decimalPlaces);
+    void wireKnobPopup(juce::Slider& slider, const juce::String& unitSuffix, int decimalPlaces, bool affectsWaveform);
     juce::String formatKnobText(const juce::Slider& slider, const juce::String& unitSuffix, int decimalPlaces) const;
+    void updateWaveformDisplay();
 
     MultibandConvolverAudioProcessor& processor;
     int currentBand = -1;
@@ -41,6 +43,7 @@ private:
     juce::Label preDelayLabel, toneLabel, fadeInLabel, fadeOutLabel, stretchLabel, feedbackLabel, dryWetLabel, outGainLabel;
 
     KnobPopup knobPopup;
+    IRWaveformView waveformView;
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;

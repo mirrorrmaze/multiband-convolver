@@ -3,6 +3,16 @@
 
 namespace IRProcessor
 {
+    void computeFadeRegion(int naturalLength, double sampleRate, float fadeInMs, float fadeOutPercent,
+                            int& outFadeInSamples, int& outKeptLength)
+    {
+        outFadeInSamples = juce::jlimit(0, naturalLength, (int) (fadeInMs * 0.001 * sampleRate));
+
+        const float minKeepFraction = 0.02f; // never truncate to literally nothing
+        const float keepFraction = 1.0f - (fadeOutPercent * 0.01f) * (1.0f - minKeepFraction);
+        outKeptLength = juce::jlimit(64, juce::jmax(64, naturalLength), (int) std::round(naturalLength * keepFraction));
+    }
+
     bool buildShapedIR(int irIndex, double sampleRate, float fadeInMs, float fadeOutPercent, float stretch,
                         juce::AudioBuffer<float>& outShapedIR)
     {
@@ -48,8 +58,12 @@ namespace IRProcessor
             interpolator.process(ratio, rawIR.getReadPointer(ch), outShapedIR.getWritePointer(ch), stretchedLength);
         }
 
+        // Fade in/out region: shared with IRWaveformView (see computeFadeRegion's header comment)
+        // so the waveform overlay can never drift out of sync with what actually gets shaped here.
+        int fadeInSamples = 0, keptLength = stretchedLength;
+        computeFadeRegion(stretchedLength, sampleRate, fadeInMs, fadeOutPercent, fadeInSamples, keptLength);
+
         // Fade in: linear ramp from 0 over fadeInMs at the head of the IR.
-        const int fadeInSamples = juce::jlimit(0, stretchedLength, (int) (fadeInMs * 0.001 * sampleRate));
         for (int ch = 0; ch < srcChannels; ++ch)
         {
             auto* data = outShapedIR.getWritePointer(ch);
@@ -64,10 +78,6 @@ namespace IRProcessor
         // 0% keeps the full natural tail; 100% gates it down to a small fraction of its original
         // length. A short fade-to-zero right at the new cut point avoids a click from the
         // truncation itself.
-        const float minKeepFraction = 0.02f; // never truncate to literally nothing
-        const float keepFraction = 1.0f - (fadeOutPercent * 0.01f) * (1.0f - minKeepFraction);
-        const int keptLength = juce::jlimit(64, stretchedLength, (int) std::round(stretchedLength * keepFraction));
-
         if (keptLength < stretchedLength)
         {
             const int clickFadeSamples = juce::jmin(keptLength, (int) (0.01 * sampleRate)); // ~10ms
