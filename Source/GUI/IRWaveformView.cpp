@@ -186,24 +186,41 @@ void IRWaveformView::paint(juce::Graphics& g)
     g.setColour(LookAndFeelSaturnish::metalDark.withAlpha(0.6f));
     g.drawHorizontalLine((int) midY, bounds.getX(), bounds.getRight());
 
-    // Kept region (will actually play): normal accent colour.
-    auto keptPath = buildWaveformPath(minPoints, maxPoints, 0, cutoff, midY, halfH);
-    g.setColour(LookAndFeelSaturnish::accent.withAlpha(0.55f));
-    g.fillPath(keptPath);
-    g.setColour(LookAndFeelSaturnish::accent.withAlpha(0.85f));
-    g.strokePath(keptPath, juce::PathStrokeType(1.0f));
+    // Kept region (will actually play), with a visual amplitude taper across the last quarter of
+    // it leading into the cut point -- reads as a ramp-down into the fade, symmetric with Fade
+    // In's ramp-up at the head, rather than an abrupt vertical cut. The real audio still does a
+    // short declick + hard truncation right at the cut point (see computeFadeRegion), so this
+    // taper is display-only for legibility, not a change to what actually plays.
+    const int rampColumns = juce::jmin(cutoff, juce::jmax(24, cutoff / 4));
+    const int rampStart = cutoff - rampColumns;
+    auto taperAt = [&] (int x)
+    {
+        return (rampColumns > 0 && x >= rampStart) ? 1.0f - (float) (x - rampStart) / (float) rampColumns : 1.0f;
+    };
 
-    // Cut region (fade-out has truncated this away): dimmed grey, reads as "won't play".
+    if (cutoff > 0)
+    {
+        juce::Path keptPath;
+        keptPath.startNewSubPath(0.0f, midY - maxPoints[0] * taperAt(0) * halfH);
+        for (int x = 1; x < cutoff; ++x)
+            keptPath.lineTo((float) x, midY - maxPoints[(size_t) x] * taperAt(x) * halfH);
+        for (int x = cutoff - 1; x >= 0; --x)
+            keptPath.lineTo((float) x, midY - minPoints[(size_t) x] * taperAt(x) * halfH);
+        keptPath.closeSubPath();
+
+        g.setColour(LookAndFeelSaturnish::accent.withAlpha(0.55f));
+        g.fillPath(keptPath);
+        g.setColour(LookAndFeelSaturnish::accent.withAlpha(0.85f));
+        g.strokePath(keptPath, juce::PathStrokeType(1.0f));
+    }
+
+    // Cut region (fade-out has truncated this away): faint grey ghost of what used to be there,
+    // no hard boundary drawn -- the taper above already communicates the transition.
     if (cutoff < width)
     {
         auto cutPath = buildWaveformPath(minPoints, maxPoints, cutoff, width, midY, halfH);
-        g.setColour(LookAndFeelSaturnish::metalLight.withAlpha(0.35f));
+        g.setColour(LookAndFeelSaturnish::metalLight.withAlpha(0.2f));
         g.fillPath(cutPath);
-        g.setColour(LookAndFeelSaturnish::metalLight.withAlpha(0.5f));
-        g.strokePath(cutPath, juce::PathStrokeType(1.0f));
-
-        g.setColour(LookAndFeelSaturnish::text.withAlpha(0.4f));
-        g.drawVerticalLine(cutoff, bounds.getY() + 2.0f, bounds.getBottom() - 2.0f);
     }
 
     if (displayedSampleRate > 0.0 && displayedKeptLength > 0)
