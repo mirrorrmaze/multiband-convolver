@@ -130,6 +130,19 @@ void IRWaveformView::rebuildDisplayPoints()
             lo = juce::jmin(lo, range.getStart());
             hi = juce::jmax(hi, range.getEnd());
         }
+
+        // Floor truly negligible amplitude (a long reverb tail decays to near-digital-silence,
+        // e.g. 1e-6 range, well below anything visible at any sane halfH) to a hard zero. Left
+        // as tiny non-zero noise, hundreds of columns' worth of jittering-by-a-fraction-of-a-pixel
+        // points made an almost-but-not-quite-flat closed polygon, which rendered as visible
+        // banding/bars near the tail instead of the flat silent line the audio actually is --
+        // a rasterizer artifact from filling a near-degenerate shape, not real IR content
+        // (confirmed by dumping the raw column values, which were genuinely just quiet, not
+        // absent -- see the reported "artifacts at the tail" waveform-view bug).
+        constexpr float silenceFloor = 1.0e-4f;
+        if (std::abs(lo) < silenceFloor) lo = 0.0f;
+        if (std::abs(hi) < silenceFloor) hi = 0.0f;
+
         minPoints[(size_t) x] = lo;
         maxPoints[(size_t) x] = hi;
     }
