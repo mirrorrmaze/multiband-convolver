@@ -41,6 +41,7 @@ target_sources(MultibandConvolver
         Source/GUI/MacroPanelComponent.cpp
         Source/GUI/LookAndFeelSaturnish.cpp
         Source/GUI/KnobPopup.cpp
+        Source/GUI/IRWaveformView.cpp
 )
 
 target_include_directories(MultibandConvolver

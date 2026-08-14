@@ -21,7 +21,10 @@ MacroPanelComponent::MacroPanelComponent(MultibandConvolverAudioProcessor& proce
 
     for (auto& entry : IRLibrary::getCatalog())
         irBox.addItem(entry.displayName, irBox.getNumItems() + 1);
+    irBox.onChange = [this] { updateWaveformDisplay(); };
     addAndMakeVisible(irBox);
+
+    addAndMakeVisible(waveformView);
 
     bypassButton.setClickingTogglesState(true);
     soloButton.setClickingTogglesState(true);
@@ -30,16 +33,16 @@ MacroPanelComponent::MacroPanelComponent(MultibandConvolverAudioProcessor& proce
     addAndMakeVisible(soloButton);
     addAndMakeVisible(muteButton);
 
-    struct KnobSpec { juce::Slider* slider; juce::Label* label; const char* text; const char* unit; int decimals; };
+    struct KnobSpec { juce::Slider* slider; juce::Label* label; const char* text; const char* unit; int decimals; bool affectsWaveform; };
     const KnobSpec specs[] = {
-        { &preDelayKnob, &preDelayLabel, "Pre-Delay", " ms", 1 },
-        { &toneKnob, &toneLabel, "Tone", "", 2 },
-        { &fadeInKnob, &fadeInLabel, "Fade In", " ms", 1 },
-        { &fadeOutKnob, &fadeOutLabel, "Fade Out", "%", 1 },
-        { &stretchKnob, &stretchLabel, "Stretch", "x", 2 },
-        { &feedbackKnob, &feedbackLabel, "Feedback", "%", 1 },
-        { &dryWetKnob, &dryWetLabel, "Dry/Wet", "%", 1 },
-        { &outGainKnob, &outGainLabel, "Output", " dB", 1 },
+        { &preDelayKnob, &preDelayLabel, "Pre-Delay", " ms", 1, false },
+        { &toneKnob, &toneLabel, "Tone", "", 2, false },
+        { &fadeInKnob, &fadeInLabel, "Fade In", " ms", 1, true },
+        { &fadeOutKnob, &fadeOutLabel, "Fade Out", "%", 1, true },
+        { &stretchKnob, &stretchLabel, "Stretch", "x", 2, true },
+        { &feedbackKnob, &feedbackLabel, "Feedback", "%", 1, false },
+        { &dryWetKnob, &dryWetLabel, "Dry/Wet", "%", 1, false },
+        { &outGainKnob, &outGainLabel, "Output", " dB", 1, false },
     };
 
     for (auto& spec : specs)
@@ -51,7 +54,7 @@ MacroPanelComponent::MacroPanelComponent(MultibandConvolverAudioProcessor& proce
         spec.label->setFont(juce::Font(juce::FontOptions(12.0f)).withExtraKerningFactor(0.03f));
         addAndMakeVisible(*spec.label);
 
-        wireKnobPopup(*spec.slider, spec.unit, spec.decimals);
+        wireKnobPopup(*spec.slider, spec.unit, spec.decimals, spec.affectsWaveform);
     }
 
     addChildComponent(knobPopup); // becomes visible on demand; added last so it paints on top
@@ -59,10 +62,15 @@ MacroPanelComponent::MacroPanelComponent(MultibandConvolverAudioProcessor& proce
     setSelectedBand(0);
 }
 
-void MacroPanelComponent::wireKnobPopup(juce::Slider& slider, const juce::String& unitSuffix, int decimalPlaces)
+void MacroPanelComponent::wireKnobPopup(juce::Slider& slider, const juce::String& unitSuffix, int decimalPlaces, bool affectsWaveform)
 {
-    slider.onValueChange = [this, &slider, unitSuffix, decimalPlaces]
+    slider.onValueChange = [this, &slider, unitSuffix, decimalPlaces, affectsWaveform]
     {
+        // Runs even while suppressPopup is true (band switch) -- the waveform should still track
+        // the newly-selected band's values, it's just the popup bubble that shouldn't appear.
+        if (affectsWaveform)
+            updateWaveformDisplay();
+
         if (suppressPopup)
             return;
 
@@ -70,6 +78,16 @@ void MacroPanelComponent::wireKnobPopup(juce::Slider& slider, const juce::String
         knobPopup.showFor(slider, formatKnobText(slider, unitSuffix, decimalPlaces), slider.getValue(),
                            [sliderPtr] (double v) { sliderPtr->setValue(v, juce::sendNotificationSync); });
     };
+}
+
+void MacroPanelComponent::updateWaveformDisplay()
+{
+    const int irIndex = irBox.getSelectedId() - 1; // ids are 1-based, matching catalog index + 1
+    if (irIndex < 0)
+        return;
+
+    waveformView.refresh(irIndex, processor.getSampleRate(), (float) fadeInKnob.getValue(),
+                          (float) fadeOutKnob.getValue(), (float) stretchKnob.getValue());
 }
 
 juce::String MacroPanelComponent::formatKnobText(const juce::Slider& slider, const juce::String& unitSuffix, int decimalPlaces) const
@@ -131,6 +149,8 @@ void MacroPanelComponent::rebuildAttachments()
         if (safeThis != nullptr)
             safeThis->suppressPopup = false;
     });
+
+    updateWaveformDisplay(); // don't rely on attachment construction firing onValueChange
 }
 
 void MacroPanelComponent::paint(juce::Graphics& g)
@@ -167,6 +187,14 @@ void MacroPanelComponent::resized()
     soloButton.setBounds(header.removeFromRight(60).reduced(2));
     bypassButton.setBounds(header.removeFromRight(70).reduced(2));
     irBox.setBounds(header.reduced(4, 0));
+
+    area.removeFromTop(8);
+
+    // Proportional (not a fixed pixel height) so the waveform strip and the knob row below it
+    // scale together across the plugin's resizable range (700x420 - 1600x1000) instead of the
+    // strip eating a fixed chunk that would crush the knobs at the smallest window size.
+    auto waveformArea = area.removeFromTop(juce::jlimit(50, 130, area.getHeight() * 3 / 10));
+    waveformView.setBounds(waveformArea.reduced(4, 0));
 
     area.removeFromTop(8);
 
