@@ -50,6 +50,16 @@ void MultibandConvolverAudioProcessorEditor::refreshPresetBox(const juce::String
 void MultibandConvolverAudioProcessorEditor::showHeaderMenu()
 {
     juce::PopupMenu menu;
+
+    if (availableUpdateVersion.isNotEmpty())
+    {
+        menu.addItem("Update available: " + availableUpdateVersion, [this]
+        {
+            availableUpdateUrl.launchInDefaultBrowser();
+        });
+        menu.addSeparator();
+    }
+
     menu.addItem("Open Presets Folder", [this]
     {
         presetManager.getPresetsDirectory().revealToUser();
@@ -170,6 +180,16 @@ MultibandConvolverAudioProcessorEditor::MultibandConvolverAudioProcessorEditor(M
     setResizable(true, true);
     setResizeLimits(700, 420, 1600, 1000);
     setSize(1000, 620);
+
+    juce::Component::SafePointer<MultibandConvolverAudioProcessorEditor> safeThis(this);
+    updateChecker.checkAsync(MULTIBAND_CONVOLVER_VERSION, [safeThis] (juce::String newVersion, juce::URL releaseUrl)
+    {
+        if (safeThis == nullptr)
+            return;
+        safeThis->availableUpdateVersion = newVersion;
+        safeThis->availableUpdateUrl = releaseUrl;
+        safeThis->menuButton.setColour(juce::TextButton::textColourOffId, LookAndFeelSaturnish::accent);
+    });
 }
 
 MultibandConvolverAudioProcessorEditor::~MultibandConvolverAudioProcessorEditor()

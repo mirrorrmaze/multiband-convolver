@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(MultibandConvolver VERSION 0.1.0)
+project(MultibandConvolver VERSION 0.2.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,6 +31,7 @@ target_sources(MultibandConvolver
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
+        Source/UpdateChecker.cpp
         Source/DSP/CrossoverSplitter.cpp
         Source/DSP/BandChain.cpp
         Source/DSP/IRLibrary.cpp
@@ -53,6 +54,7 @@ target_compile_definitions(MultibandConvolver
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
+        MULTIBAND_CONVOLVER_VERSION="${PROJECT_VERSION}"
 )
 
 juce_add_binary_data(MultibandConvolverTextures SOURCES

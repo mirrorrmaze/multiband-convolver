@@ -8,6 +8,7 @@
 #include "GUI/KnobPopup.h"
 #include "GUI/FloppyDiskButton.h"
 #include "Params/PresetManager.h"
+#include "UpdateChecker.h"
 
 class MultibandConvolverAudioProcessorEditor final : public juce::AudioProcessorEditor
 {
@@ -28,6 +29,10 @@ private:
 
     MultibandConvolverAudioProcessor& processorRef;
     PresetManager presetManager;
+
+    UpdateChecker updateChecker;
+    juce::String availableUpdateVersion; // empty until/unless UpdateChecker finds something newer
+    juce::URL availableUpdateUrl;
 
     LookAndFeelSaturnish lookAndFeel;
     juce::Label titleLabel;
