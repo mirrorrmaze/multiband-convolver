@@ -20,19 +20,24 @@ namespace IRProcessor
         // deliberate, pragmatic trade-off (see architecture notes) since reverb tails are
         // diffuse/unpitched content where that artifact is least perceptible.
         //
-        // Hard-capped in absolute duration (not just the 0.25x-4x multiplier) because
+        // Growth is capped in absolute duration (not just the 0.25x-4x multiplier) because
         // juce::dsp::Convolution's per-block cost scales with IR length: the library's longer
         // factory IRs (up to ~11.6s) at 4x stretch would build a ~46s kernel, and that's real,
-        // sustained CPU cost once loaded -- not a one-off spike a bigger debounce window can fix
-        // (confirmed via user report of 140%+ CPU simply sitting at a non-default Stretch value,
-        // not just while dragging it). 6s still covers the full 4x range for the large majority
-        // of the library (most factory IRs are under 1.5s) while leaving real headroom on the
-        // worst case: testCpuBudgetAtMaxBands hit a 0.98 realtime factor at a 12s cap with 8
-        // bands all stretched to 4x -- uncomfortably close to blowing the real-time deadline
-        // before accounting for other plugins/GUI/OS jitter sharing the same audio thread.
-        constexpr double maxShapedIRSeconds = 6.0;
-        const int maxShapedIRSamples = (int) (maxShapedIRSeconds * sampleRate);
-        const int stretchedLength = juce::jlimit(1, maxShapedIRSamples, (int) std::round(srcLength * stretch));
+        // sustained CPU cost once loaded, not a one-off spike a bigger debounce window can fix.
+        //
+        // The cap floor is the source's own natural length, NOT a flat ceiling -- clamping the
+        // target length below the natural source length was an earlier bug here: it silently
+        // truncated any factory IR already longer than the cap even at the untouched default
+        // (stretch = 1x), and for stretch > 1 on those same IRs it could clamp the *grown* target
+        // below the *source* length, flipping the resample ratio into compression instead of
+        // stretch -- so turning Stretch up would speed the IR up instead of slowing it down, and
+        // since many different Stretch values all clamped to the same capped output, the knob
+        // would audibly do nothing across a chunk of its range. Anchoring the ceiling at
+        // max(natural length, cap) means Stretch can only ever grow something, never shrink it
+        // below what picking that IR at 1x already gives you.
+        constexpr double maxGrowthSeconds = 8.0;
+        const int growthCeilingSamples = juce::jmax(srcLength, (int) (maxGrowthSeconds * sampleRate));
+        const int stretchedLength = juce::jmin(growthCeilingSamples, juce::jmax(1, (int) std::round(srcLength * stretch)));
         outShapedIR.setSize(srcChannels, stretchedLength, false, false, true);
 
         const double ratio = (double) srcLength / (double) stretchedLength;

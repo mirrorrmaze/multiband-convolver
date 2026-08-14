@@ -14,6 +14,7 @@
 #include "../Source/DSP/CrossoverSplitter.h"
 #include "../Source/DSP/BandChain.h"
 #include "../Source/DSP/IRLibrary.h"
+#include "../Source/DSP/IRProcessor.h"
 #include "../Source/Params/ParameterLayout.h"
 #include "../Source/Params/Identifiers.h"
 #include <iostream>
@@ -491,6 +492,70 @@ namespace
         return failures == 0;
     }
 
+    // Regression test for a real bug: an earlier version of the Stretch CPU cap clamped the
+    // *target* length down to a flat ceiling even when that was below the IR's own natural
+    // length, which (a) silently truncated long factory IRs even at the untouched default
+    // (stretch = 1x), and (b) for stretch > 1 on those same IRs, could clamp the grown target
+    // below the source length -- flipping buildShapedIR's resample ratio into compression
+    // instead of stretch, so turning the knob up sped the IR up instead of slowing it down, and
+    // several different Stretch values could all clamp to the identical output (audibly "the
+    // knob does nothing" across part of its range). This checks the two invariants that bug
+    // broke, across every factory IR and a spread of stretch values: stretch = 1x must never
+    // change the IR's natural length, and length must grow monotonically (non-strictly) with
+    // stretch, never dropping below natural length for any stretch >= 1.
+    bool testStretchNeverShrinksBelowNatural(double sampleRate)
+    {
+        const auto& catalog = IRLibrary::getCatalog();
+        int failures = 0;
+
+        for (int i = 0; i < (int) catalog.size(); ++i)
+        {
+            juce::AudioBuffer<float> natural;
+            if (! IRProcessor::buildShapedIR(i, sampleRate, 0.0f, 0.0f, 1.0f, natural))
+                continue;
+            const int naturalLength = natural.getNumSamples();
+
+            int prevLength = -1;
+            for (float stretch : { 1.0f, 1.5f, 2.0f, 3.0f, 4.0f })
+            {
+                juce::AudioBuffer<float> shaped;
+                if (! IRProcessor::buildShapedIR(i, sampleRate, 0.0f, 0.0f, stretch, shaped))
+                {
+                    ++failures;
+                    continue;
+                }
+                const int length = shaped.getNumSamples();
+
+                if (stretch == 1.0f && length != naturalLength)
+                {
+                    ++failures;
+                    std::cout << "[Stretch invariant test] FAILED catalog[" << i << "] \""
+                               << catalog[(size_t) i].displayName << "\": stretch=1x length " << length
+                               << " != natural length " << naturalLength << "\n";
+                }
+                if (length < naturalLength)
+                {
+                    ++failures;
+                    std::cout << "[Stretch invariant test] FAILED catalog[" << i << "] \""
+                               << catalog[(size_t) i].displayName << "\": stretch=" << stretch
+                               << " length " << length << " < natural length " << naturalLength << "\n";
+                }
+                if (prevLength >= 0 && length < prevLength)
+                {
+                    ++failures;
+                    std::cout << "[Stretch invariant test] FAILED catalog[" << i << "] \""
+                               << catalog[(size_t) i].displayName << "\": length decreased from " << prevLength
+                               << " to " << length << " as stretch increased to " << stretch << "\n";
+                }
+                prevLength = length;
+            }
+        }
+
+        std::cout << "[Stretch invariant test] " << (failures == 0 ? "all" : "NOT all")
+                   << " factory IRs held stretch>=1x length invariants (" << failures << " failures)\n";
+        return failures == 0;
+    }
+
     // Replicates SpectrumBandStrip's addBandAt/removeBand split-shifting algorithm exactly
     // (can't use the real GUI class directly -- it's a Component pulling in the whole GUI module,
     // which this lightweight test target deliberately avoids) against a REAL APVTS, then hammers
@@ -767,6 +832,7 @@ int main()
     ok &= testFeedbackSafety(sampleRate, blockSize);
     ok &= testIRPathPersistence();
     ok &= testAllFactoryIRsLoad(sampleRate);
+    ok &= testStretchNeverShrinksBelowNatural(sampleRate);
     ok &= testBandAddRemoveKeepsSplitsSorted();
     ok &= testBandSettingsFollowSplitsAndMerges();
     ok &= testCpuBudgetAtMaxBands(sampleRate, blockSize);
