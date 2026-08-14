@@ -16,6 +16,10 @@ while the highs bloom in a cathedral, all in one instance.
 - **Independent convolution per band** against a selectable impulse response.
 - **Per-band macro controls**: Dry/Wet, Tone (tilt EQ), Fade In, Fade Out (decay/length control),
   Stretch, Feedback, Pre-Delay, Output, plus Bypass/Solo/Mute.
+- **IR waveform view**: shows the selected band's impulse response at a fixed scale, with Fade In
+  baked into the visible taper and Fade Out shown as a dimmed cut region rather than rescaling the
+  whole shape -- so both fades and Stretch's effect on density/length are visible directly, not
+  just audible after a reload.
 - **95 curated factory impulse responses** (real rooms, halls, garages, springs, plates, and a
   handful of oddball found-object textures -- see `Resources/IRs/CREDITS.md` for sourcing/
   licensing) across Residential, Commercial, Public, Historical, Outdoors, and Textures categories.
