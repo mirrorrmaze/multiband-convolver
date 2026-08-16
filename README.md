@@ -10,9 +10,10 @@ while the highs bloom in a cathedral, all in one instance.
 
 ## Features
 
-- **Draggable band editor** with a live spectrum analyzer background -- click empty space to add
-  a band, drag an edge to resize it. Bands share crossover edges, so there are no gaps or
-  overlaps between them.
+- **Draggable band editor** with a live spectrum analyzer background and a Pro-Q-style frequency
+  grid -- click empty space to add a band, drag an edge to resize it. Bands share crossover edges,
+  so there are no gaps or overlaps between them. Click or drag an edge to see its exact Hz in a
+  popup; double-click that popup to type a precise crossover frequency.
 - **Independent convolution per band** against a selectable impulse response.
 - **Per-band macro controls**: Dry/Wet, Tone (tilt EQ), Fade In, Fade Out (decay/length control),
   Stretch, Feedback, Pre-Delay, Output, plus Bypass/Solo/Mute.
