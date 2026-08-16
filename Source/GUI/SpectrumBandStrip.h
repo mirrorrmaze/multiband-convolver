@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../PluginProcessor.h"
+#include "KnobPopup.h"
 
 // Saturn-2-style draggable band editor: a live spectrum analyzer background with contiguous,
 // shared-edge band blocks layered on top. Owns the split-point array's UI interaction so the
@@ -54,11 +55,17 @@ private:
     void removeBand(int bandIndex);
     void selectBand(int bandIndex);
 
+    // Shows/refreshes the Hz-readout bubble anchored at `anchorPos` for the given split, and
+    // wires its type-to-set editing gesture back to setSplitValue.
+    void showEdgePopup(int splitIndex, juce::Point<float> anchorPos);
+
     MultibandConvolverAudioProcessor& processor;
 
     int selectedBand = 0;
     int draggingSplitIndex = -1;
     int hoveredEdge = -1;
+
+    KnobPopup edgePopup;
 
     static constexpr float edgeGrabPx = 7.0f;
     static constexpr float minHz = 20.0f;

@@ -18,6 +18,13 @@ KnobPopup::KnobPopup()
 void KnobPopup::showFor(juce::Component& target, const juce::String& text,
                          double currentValue, std::function<void(double)> onValueEntered)
 {
+    // target shares this component's parent coordinate space
+    showFor(target.getBounds(), text, currentValue, std::move(onValueEntered));
+}
+
+void KnobPopup::showFor(juce::Rectangle<int> targetBounds, const juce::String& text,
+                         double currentValue, std::function<void(double)> onValueEntered)
+{
     if (editing)
         return; // don't yank the bubble out from under an in-progress manual edit
 
@@ -26,7 +33,6 @@ void KnobPopup::showFor(juce::Component& target, const juce::String& text,
     valueCallback = std::move(onValueEntered);
 
     const int w = 74, h = 22;
-    auto targetBounds = target.getBounds(); // target shares this component's parent coordinate space
     int x = targetBounds.getCentreX() - w / 2;
 
     // Below the knob rather than above -- above collides with the name label that sits directly

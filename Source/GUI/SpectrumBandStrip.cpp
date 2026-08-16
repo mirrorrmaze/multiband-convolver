@@ -3,11 +3,41 @@
 #include "../Params/Identifiers.h"
 #include "../Params/ParameterLayout.h"
 
+namespace
+{
+    // Standard log-spaced reference frequencies for the background grid, Pro-Q-style.
+    const float gridFrequencies[] = { 20.0f, 50.0f, 100.0f, 200.0f, 500.0f,
+                                       1000.0f, 2000.0f, 5000.0f, 10000.0f, 20000.0f };
+
+    juce::String formatHz(float hz)
+    {
+        if (hz >= 1000.0f)
+        {
+            const float khz = hz / 1000.0f;
+            const bool isWhole = std::abs(khz - std::round(khz)) < 0.005f;
+            return (isWhole ? juce::String((int) std::round(khz)) : juce::String(khz, 1)) + " kHz";
+        }
+        return juce::String((int) std::round(hz)) + " Hz";
+    }
+}
+
 SpectrumBandStrip::SpectrumBandStrip(MultibandConvolverAudioProcessor& processorToUse)
     : processor(processorToUse)
 {
     setWantsKeyboardFocus(false);
+    addChildComponent(edgePopup); // becomes visible on demand; added last so it paints on top
     startTimerHz(30);
+}
+
+void SpectrumBandStrip::showEdgePopup(int splitIndex, juce::Point<float> anchorPos)
+{
+    const float hz = processor.apvts.getRawParameterValue(Params::splitHzID(splitIndex))->load();
+
+    juce::Rectangle<int> anchor((int) anchorPos.x - 1, (int) anchorPos.y - 1, 2, 2);
+    edgePopup.showFor(anchor, formatHz(hz), hz, [this, splitIndex] (double v)
+    {
+        setSplitValue(splitIndex, (float) v);
+    });
 }
 
 void SpectrumBandStrip::timerCallback()
@@ -173,6 +203,7 @@ void SpectrumBandStrip::mouseDown(const juce::MouseEvent& e)
         draggingSplitIndex = edge;
         if (auto* param = processor.apvts.getParameter(Params::splitHzID(edge)))
             param->beginChangeGesture();
+        showEdgePopup(edge, e.position);
         return;
     }
 
@@ -204,6 +235,7 @@ void SpectrumBandStrip::mouseDrag(const juce::MouseEvent& e)
     float hz = xToHz((float) e.position.x);
     hz = juce::jlimit(lowBound * 1.02f, highBound * 0.98f, hz);
     setSplitValue(draggingSplitIndex, hz);
+    showEdgePopup(draggingSplitIndex, e.position);
 }
 
 void SpectrumBandStrip::mouseUp(const juce::MouseEvent&)
@@ -229,6 +261,19 @@ void SpectrumBandStrip::paint(juce::Graphics& g)
     auto bounds = getLocalBounds().toFloat();
     g.setColour(LookAndFeelSaturnish::background);
     g.fillRect(bounds);
+
+    // Frequency reference grid (Pro-Q-style): thin log-spaced vertical lines with Hz labels along
+    // the bottom, drawn first so the spectrum/band tints read as sitting on top of it.
+    g.setFont(juce::Font(juce::FontOptions(10.0f)));
+    for (float hz : gridFrequencies)
+    {
+        const float x = hzToX(hz);
+        g.setColour(LookAndFeelSaturnish::metalLight.withAlpha(0.16f));
+        g.drawLine(x, 0.0f, x, bounds.getHeight(), 1.0f);
+
+        g.setColour(LookAndFeelSaturnish::text.withAlpha(0.4f));
+        g.drawText(formatHz(hz), (int) x + 3, (int) bounds.getHeight() - 14, 50, 12, juce::Justification::left);
+    }
 
     const int numBands = getNumBandsFromState();
 

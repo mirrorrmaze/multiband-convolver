@@ -18,6 +18,11 @@ public:
     void showFor(juce::Component& target, const juce::String& text,
                  double currentValue, std::function<void(double)> onValueEntered);
 
+    // Same, anchored to a raw rectangle instead of a Component -- for callers with a click point
+    // rather than an actual child component to point at (e.g. a band-editor split-point edge).
+    void showFor(juce::Rectangle<int> targetBounds, const juce::String& text,
+                 double currentValue, std::function<void(double)> onValueEntered);
+
     void paint(juce::Graphics&) override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
 
