@@ -19,25 +19,39 @@ MacroPanelComponent::MacroPanelComponent(MultibandConvolverAudioProcessor& proce
     bandTitleLabel.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)).withExtraKerningFactor(0.04f));
     addAndMakeVisible(bandTitleLabel);
 
-    // Grouped by category with bold section headings (Residential/Commercial/Public/Historical/
-    // Outdoors/Textures/Custom), matching the picker layout in the sibling GGrid project's own
-    // convolver. Item IDs are still just catalogIndex + 1 regardless of how many headings get
-    // interspersed -- addSectionHeading() doesn't consume an ID, so this can't disturb the
-    // catalog's permanently-stable indices (see IRLibrary.h) that saved presets/automation rely
-    // on. A category can legitimately appear as more than one separate heading (the catalog's
-    // factory entries were appended in batches over time, not fully re-sorted by category), which
-    // is fine -- it's just a display grouping, not a reordering.
-    juce::String lastCategory;
+    // Grouped by category with one bold section heading each (Residential/Commercial/Public/
+    // Historical/Outdoors/Textures, then Custom), matching the picker layout in the sibling
+    // GGrid project's own convolver. This is a *display* grouping, built by walking the fixed
+    // category order and pulling in every matching entry regardless of where it actually sits in
+    // the catalog -- the factory catalog's entries were appended across several historical
+    // batches, not stored pre-sorted by category, so grouping by "category changed since the
+    // previous entry" (an earlier version of this) produced the same category heading repeated
+    // several times instead of once. Item IDs are still exactly catalogIndex + 1, independent of
+    // this display order and of addSectionHeading() (which doesn't consume an ID) -- so none of
+    // this can disturb the catalog's permanently-stable indices that saved presets/automation
+    // rely on (see IRLibrary.h).
     const auto& catalog = IRLibrary::getCatalog();
-    for (int i = 0; i < (int) catalog.size(); ++i)
+
+    juce::StringArray categoryOrder { "Residential", "Commercial", "Public", "Historical", "Outdoors", "Textures" };
+    for (auto& entry : catalog)
+        if (! categoryOrder.contains(entry.category))
+            categoryOrder.add(entry.category); // picks up "Custom" (and anything unforeseen), in first-appearance order
+
+    for (auto& category : categoryOrder)
     {
-        const auto& entry = catalog[(size_t) i];
-        if (entry.category != lastCategory)
+        bool headingAdded = false;
+        for (int i = 0; i < (int) catalog.size(); ++i)
         {
-            irBox.addSectionHeading(entry.category);
-            lastCategory = entry.category;
+            const auto& entry = catalog[(size_t) i];
+            if (entry.category != category)
+                continue;
+            if (! headingAdded)
+            {
+                irBox.addSectionHeading(category);
+                headingAdded = true;
+            }
+            irBox.addItem(entry.displayName, i + 1);
         }
-        irBox.addItem(entry.displayName, i + 1);
     }
     irBox.onChange = [this] { updateWaveformDisplay(); };
     addAndMakeVisible(irBox);
