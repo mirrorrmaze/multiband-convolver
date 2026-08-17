@@ -24,6 +24,7 @@ while the highs bloom in a cathedral, all in one instance.
 - **95 curated factory impulse responses** (real rooms, halls, garages, springs, plates, and a
   handful of oddball found-object textures -- see `Resources/IRs/CREDITS.md` for sourcing/
   licensing) across Residential, Commercial, Public, Historical, Outdoors, and Textures categories.
+  The picker groups them under a bold heading per category instead of one flat list.
 - **Custom IR support**: drop your own WAV/AIFF/FLAC files into the IR library's `Custom` folder
   (via the `...` menu -> "Open IR Library Folder") and they show up in the picker right alongside
   the factory library.
