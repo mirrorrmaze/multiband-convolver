@@ -19,8 +19,26 @@ MacroPanelComponent::MacroPanelComponent(MultibandConvolverAudioProcessor& proce
     bandTitleLabel.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)).withExtraKerningFactor(0.04f));
     addAndMakeVisible(bandTitleLabel);
 
-    for (auto& entry : IRLibrary::getCatalog())
-        irBox.addItem(entry.displayName, irBox.getNumItems() + 1);
+    // Grouped by category with bold section headings (Residential/Commercial/Public/Historical/
+    // Outdoors/Textures/Custom), matching the picker layout in the sibling GGrid project's own
+    // convolver. Item IDs are still just catalogIndex + 1 regardless of how many headings get
+    // interspersed -- addSectionHeading() doesn't consume an ID, so this can't disturb the
+    // catalog's permanently-stable indices (see IRLibrary.h) that saved presets/automation rely
+    // on. A category can legitimately appear as more than one separate heading (the catalog's
+    // factory entries were appended in batches over time, not fully re-sorted by category), which
+    // is fine -- it's just a display grouping, not a reordering.
+    juce::String lastCategory;
+    const auto& catalog = IRLibrary::getCatalog();
+    for (int i = 0; i < (int) catalog.size(); ++i)
+    {
+        const auto& entry = catalog[(size_t) i];
+        if (entry.category != lastCategory)
+        {
+            irBox.addSectionHeading(entry.category);
+            lastCategory = entry.category;
+        }
+        irBox.addItem(entry.displayName, i + 1);
+    }
     irBox.onChange = [this] { updateWaveformDisplay(); };
     addAndMakeVisible(irBox);
 
