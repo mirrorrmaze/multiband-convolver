@@ -14,7 +14,7 @@ curated factory IR library plus user-droppable custom IRs.
 
 - **Repo**: https://github.com/mirrorrmaze/multiband-convolver (public)
 - **Local path** (on the primary dev machine): `D:\Claude Projects\MultibandConvolver`
-- **Current version**: v0.4.0 (see [Releases](https://github.com/mirrorrmaze/multiband-convolver/releases))
+- **Current version**: v0.6.0 (see [Releases](https://github.com/mirrorrmaze/multiband-convolver/releases))
 - **Full feature list / usage / build-from-source instructions**: see `README.md` — this doc
   doesn't repeat what's already there, it covers process and history instead.
 
@@ -107,6 +107,20 @@ hits file-lock errors while sync is actively uploading the pieces.
   their own clone, since a force-push after they've pulled will desync their branch and can lose
   their work. If something needs to not appear as a highly-visible standalone commit, just write a
   normal commit with a clear message instead.
+- **This did happen once already, deliberately and for a different reason**: every commit's author
+  email was originally a placeholder (`izaka@local`) that didn't match any verified GitHub email,
+  so none of them linked to the account or showed up in GitHub's Contributors graph. Fixed with a
+  one-time `git filter-branch --env-filter` rewriting author/committer email on all commits and
+  tags, then `git push --force` on both — confirmed safe at the time because no collaborator clone
+  existed yet. If you already have this repo cloned as of reading this, you're on the *post-rewrite*
+  history; a fresh clone is the simplest way to be sure you match. Don't repeat this trick for
+  routine reasons — it's a one-off fix for that specific bootstrapping problem, not a workflow.
+- New commits should already carry a correctly-linking author identity going forward (`git config
+  user.email` set to a verified GitHub-account email — a real address you've verified in
+  github.com/settings/emails, or GitHub's own `<id>+<username>@users.noreply.github.com` format,
+  which links without needing separate verification). Check `git config user.email` is actually
+  set to something real before committing, rather than whatever placeholder a fresh machine
+  defaults to.
 
 ## Known gotchas (worth knowing if you're using an AI assistant on this repo too)
 
@@ -128,8 +142,19 @@ hits file-lock errors while sync is actively uploading the pieces.
 
 ## Recent history (condensed)
 
-Roughly chronological, most recent first, as of v0.4.0:
+Roughly chronological, most recent first, as of v0.6.0:
 
+- **v0.6.0**: The update checker gained an actual popup (Download / Skip This Version) on top of
+  the existing passive header-menu tint + menu item. "Skip This Version" persists to a small local
+  file so it won't nag again for that exact release, but still prompts normally for anything newer.
+- **v0.5.0**: IR picker is grouped by category (Residential/Commercial/Public/Historical/Outdoors/
+  Textures/Custom) with a bold heading per category instead of one flat list of 95+ entries,
+  matching the picker layout in the sibling GGrid project's own convolver. Categories are grouped
+  for *display only*, built by walking a fixed category order and pulling in matching entries
+  regardless of where they sit in the catalog -- the factory catalog's entries were appended across
+  several historical batches, so a naive "heading whenever the category changes" approach produced
+  the same category (e.g. Textures) as three separate headings instead of one consolidated section.
+  Item IDs stay exactly `catalogIndex + 1` throughout, so saved presets/automation are unaffected.
 - **v0.4.0**: Frequency reference grid in the band editor (Pro-Q-style log-spaced Hz gridlines);
   click/drag a crossover edge to see its exact Hz in a popup, double-click to type a precise value.
 - **v0.3.0**: IR waveform view in the macro panel — shows the selected band's impulse response at
