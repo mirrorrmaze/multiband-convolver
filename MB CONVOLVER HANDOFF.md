@@ -83,16 +83,8 @@ can only ever detect an update if there's somewhere higher for the tag to go.
 
 ## Distribution
 
-Besides the GitHub Release, a copy goes to
-`D:\Dropbox\01 Main\06 Devices\VST PROJECT ALPHA INSTALLERS\Multiband Convolver\Multiband Convolver Installers.zip`
-— a single zip containing the Windows `.exe`, Mac `.pkg`, and a `README.txt` (distinct from the
-repo's own `README.md`, written for testers rather than developers). Rebuild and replace the whole
-zip on each update; this project doesn't bake the version into the filename the way a sibling
-project does.
-
-**Process note**: build the zip contents in a scratch/temp directory first, then move the
-finished zip into the Dropbox folder — assembling it directly inside a live Dropbox-synced folder
-hits file-lock errors while sync is actively uploading the pieces.
+GitHub Releases is the one and only distribution channel — `gh release create vX.Y.Z <win-exe>
+<mac-pkg> --notes "..."` (see Versioning & releases above). No other handoff location.
 
 ## Git workflow
 
