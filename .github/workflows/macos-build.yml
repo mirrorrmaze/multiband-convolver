@@ -37,7 +37,7 @@ jobs:
             --root staging \
             --scripts Installer/macos \
             --identifier com.mirrormaze.multibandconvolver \
-            --version 0.5.0 \
+            --version 0.6.0 \
             --install-location / \
             "Install Multiband Convolver.pkg"
 

@@ -7,7 +7,7 @@
 ; (run from the repo root, or adjust the relative Source paths below if not)
 
 #define MyAppName "Multiband Convolver"
-#define MyAppVersion "0.5.0"
+#define MyAppVersion "0.6.0"
 #define MyAppPublisher "Mirror Maze"
 #define MyBuildDir "..\build\MultibandConvolver_artefacts\Release"
 

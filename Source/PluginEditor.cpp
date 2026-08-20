@@ -6,6 +6,27 @@ namespace
 {
     constexpr int headerHeight = 46; // tall enough for a small IN/OUT label above each master knob
     constexpr int defaultPresetId = 1;
+
+    // Where "Skip This Version" persists so the update popup doesn't nag on every launch once
+    // dismissed for a specific version -- a plain one-line text file, holding just the last
+    // skipped version tag. A newer release than the skipped one still prompts -- this only
+    // silences the exact version the user already said no to.
+    juce::File getSkippedUpdateVersionFile()
+    {
+        auto dir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("MultibandConvolver");
+        dir.createDirectory();
+        return dir.getChildFile("skipped_update_version.txt");
+    }
+
+    juce::String getSkippedUpdateVersion()
+    {
+        return getSkippedUpdateVersionFile().loadFileAsString().trim();
+    }
+
+    void setSkippedUpdateVersion(const juce::String& version)
+    {
+        getSkippedUpdateVersionFile().replaceWithText(version);
+    }
 }
 
 void MultibandConvolverAudioProcessorEditor::wireHeaderKnob(juce::Slider& slider, const juce::String& unitSuffix)
@@ -189,6 +210,31 @@ MultibandConvolverAudioProcessorEditor::MultibandConvolverAudioProcessorEditor(M
         safeThis->availableUpdateVersion = newVersion;
         safeThis->availableUpdateUrl = releaseUrl;
         safeThis->menuButton.setColour(juce::TextButton::textColourOffId, LookAndFeelSaturnish::accent);
+
+        // The passive indicator above always lights up; the popup below only interrupts once per
+        // version -- "Skip This Version" persists so it won't ask again for this exact release (a
+        // later one will still prompt), and just closing/escaping the dialog asks again next
+        // launch rather than being remembered as a skip.
+        if (newVersion == getSkippedUpdateVersion())
+            return;
+
+        juce::AlertWindow::showAsync(
+            juce::MessageBoxOptions()
+                .withIconType(juce::MessageBoxIconType::InfoIcon)
+                .withTitle("Update Available")
+                .withMessage("Multiband Convolver " + newVersion + " is available -- you're running v"
+                                 + juce::String(MULTIBAND_CONVOLVER_VERSION) + ".")
+                .withButton("Download")
+                .withButton("Skip This Version"),
+            [safeThis, newVersion, releaseUrl] (int result)
+            {
+                if (safeThis == nullptr)
+                    return;
+                if (result == 1)
+                    releaseUrl.launchInDefaultBrowser();
+                else if (result == 2)
+                    setSkippedUpdateVersion(newVersion);
+            });
     });
 }
 
